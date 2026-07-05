@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kuku vs Mwewe 🐔</title>
+<!-- Pi Network SDK -->
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+body { background:#1a0a00; overflow:hidden; width:100vw; height:100vh; touch-action:none; font-family:'Courier New',monospace; }
+canvas { display:block; }
+
+/* Pi auth overlay */
+#pi-auth-overlay {
+  position:fixed; inset:0; z-index:100;
+  background:linear-gradient(160deg,#1a0530 0%,#0a0a00 60%,#001a10 100%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px;
+}
+#pi-auth-overlay .pi-logo {
+  font-size:72px; animation:bob 1.4s ease-in-out infinite;
+}
+#pi-auth-overlay h1 {
+  font-size:28px; font-weight:900; text-align:center;
+  background:linear-gradient(135deg,#ffd700,#f5a623);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+#pi-auth-overlay p {
+  color:#c8956c; font-size:14px; text-align:center; max-width:300px; line-height:1.6;
+}
+#pi-auth-status {
+  color:#90caf9; font-size:13px; min-height:20px; text-align:center;
+}
+#pi-signin-btn {
+  background:linear-gradient(135deg,#6a1aab,#9c27b0);
+  color:#fff; font-weight:900; font-size:18px;
+  border:none; border-radius:50px; padding:14px 40px;
+  cursor:pointer; font-family:'Courier New',monospace;
+  box-shadow:0 4px 24px rgba(156,39,176,0.5);
+  display:flex; align-items:center; gap:10px;
+}
+#pi-signin-btn:active { transform:scale(0.95); }
+#pi-signin-btn:disabled { opacity:0.5; cursor:default; }
+#pi-skip-btn {
+  background:transparent; color:rgba(255,255,255,0.4);
+  border:1px solid rgba(255,255,255,0.2); border-radius:30px;
+  padding:8px 24px; font-size:12px; cursor:pointer;
+  font-family:'Courier New',monospace;
+}
+/* Pi user badge in HUD */
+#pi-user-badge {
+  position:fixed; bottom:8px; left:50%; transform:translateX(-50%);
+  z-index:29; display:none;
+  background:rgba(106,26,171,0.75); border:1px solid #9c27b0;
+  border-radius:20px; padding:4px 14px;
+  color:#e1bee7; font-size:11px; pointer-events:none;
+  backdrop-filter:blur(6px);
+}
+
+/* SCREENS — only shown at start / level end / game over */
+.screen {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:linear-gradient(160deg,#0d2b00 0%,#1a0a00 50%,#0a0030 100%);
+  z-index:50;
+}
+.screen.hidden { display:none; }
+.title { font-size:50px; font-weight:900; text-align:center; line-height:1.1; margin-bottom:6px;
+  background:linear-gradient(180deg,#ffd700,#f5a623); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.emoji-big { font-size:70px; margin:10px 0; animation:bob 1.2s ease-in-out infinite; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+.sub { color:#c8956c; font-size:14px; text-align:center; margin:8px 24px; line-height:1.7; }
+.btn {
+  background:linear-gradient(135deg,#ffd700,#f5a623); color:#1a0a00;
+  font-weight:900; font-size:20px; border:none; border-radius:50px;
+  padding:16px 44px; margin:8px; cursor:pointer;
+  box-shadow:0 4px 24px rgba(255,200,0,0.5); font-family:'Courier New',monospace;
+}
+.btn:active { transform:scale(0.93); }
+.btn.sec { background:transparent; color:#ffd700; border:2px solid #ffd700; }
+
+/* Description box */
+#desc-box {
+  background:rgba(0,0,0,0.45); border:1px solid rgba(245,166,35,0.4);
+  border-radius:16px; padding:14px 20px; margin:6px 20px 4px;
+  max-width:400px; max-height:30vh; overflow-y:auto;
+}
+#desc-box p { color:#e8d5b7; font-size:13px; line-height:1.75; text-align:center; white-space:pre-line; }
+
+/* Language grid */
+#lang-grid {
+  display:flex; flex-wrap:wrap; justify-content:center; gap:8px;
+  max-width:92vw; max-height:55vh; overflow-y:auto;
+  padding:6px 10px;
+}
+.lang-btn {
+  background:rgba(255,255,255,0.08); border:1.5px solid rgba(255,215,0,0.3);
+  border-radius:20px; padding:7px 14px; color:#e8d5b7; font-size:13px;
+  cursor:pointer; transition:background .15s,border-color .15s;
+  font-family:'Courier New',monospace;
+}
+.lang-btn:hover,.lang-btn.selected { background:rgba(245,166,35,0.35); border-color:#ffd700; color:#ffd700; font-weight:bold; }
+
+/* HUD — always visible during play */
+#hud {
+  position:fixed; top:0; left:0; right:0; z-index:30;
+  display:none;
+  justify-content:space-between; align-items:center;
+  padding:4px 7px;
+  background:rgba(0,0,0,0.65);
+  pointer-events:none; gap:4px;
+}
+.hbox {
+  background:transparent; border:none;
+  border-radius:0; padding:0 5px; color:#ffd700;
+  font-size:12px; font-weight:bold; white-space:nowrap;
+}
+.hbox span { color:#aaa; font-size:10px; display:block; line-height:1; }
+.hbox b { color:#ffd700; font-size:13px; display:block; line-height:1.2; }
+
+#hpbar-wrap { flex:1; padding:0 7px; }
+#hpbar-label {
+  font-size:10px; color:#aaa; display:flex;
+  justify-content:space-between; margin-bottom:2px;
+}
+#hpbar-bg {
+  background:#333; border-radius:3px; height:6px;
+  overflow:hidden; border:none;
+}
+#hpbar {
+  height:100%; width:100%;
+  background:linear-gradient(90deg,#2ecc71,#27ae60);
+  border-radius:3px; transition:width .3s,background .3s;
+}
+
+/* attack counter — sits below HUD, never overlaps it */
+#atk-badge {
+  position:fixed; top:42px; left:50%; transform:translateX(-50%);
+  z-index:29;                      /* lower than HUD z-index:30 */
+  pointer-events:none; display:none;
+  background:rgba(0,0,0,0.5); border:1px solid rgba(231,76,60,0.6);
+  border-radius:20px; padding:2px 10px;
+  color:#ffffff; font-size:10px; font-weight:bold; white-space:nowrap;
+}
+#atk-badge span { color:#ffffff; font-size:10px; font-weight:900; }
+
+/* Drag joystick pad — bottom right */
+#drag-pad {
+  position:fixed; bottom:24px; right:18px; z-index:30;
+  display:none; pointer-events:all;
+  width:120px; height:120px; border-radius:50%;
+  background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.25);
+  backdrop-filter:blur(4px); touch-action:none;
+  align-items:center; justify-content:center;
+}
+#drag-pad-inner {
+  width:44px; height:44px; border-radius:50%;
+  background:rgba(245,166,35,0.55); border:2px solid #ffd700;
+  pointer-events:none; position:absolute;
+  top:50%; left:50%; transform:translate(-50%,-50%);
+  transition:left .05s,top .05s;
+}
+#drag-pad-label {
+  position:absolute; bottom:-22px; left:50%; transform:translateX(-50%);
+  color:rgba(255,255,255,0.5); font-size:10px; white-space:nowrap;
+  font-family:'Courier New',monospace; pointer-events:none;
+}
+/* Floating action buttons — vertical tile, right edge */
+#game-btns {
+  position:fixed; top:56px; right:0; z-index:31;
+  display:none; flex-direction:column; gap:0; align-items:stretch;
+  pointer-events:all;
+  background:rgba(10,10,30,0.82);
+  border:2px solid rgba(245,166,35,0.55);
+  border-right:none;
+  border-radius:14px 0 0 14px;
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+  box-shadow:-3px 3px 18px rgba(0,0,0,0.6);
+}
+#game-btns .gb {
+  width:46px; height:46px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:19px; cursor:pointer;
+  pointer-events:all; transition:background .15s, transform .1s;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+#game-btns .gb:last-child { border-bottom:none; }
+#game-btns .gb:active { transform:scale(0.88); }
+#pause-float { color:#ffd700; background:rgba(245,166,35,0.18); }
+#pause-float:hover { background:rgba(245,166,35,0.35); }
+#fs-btn      { color:#90caf9; background:rgba(33,150,243,0.12); }
+#fs-btn:hover{ background:rgba(33,150,243,0.28); }
+#music-btn   { color:#a5d6a7; background:rgba(76,175,80,0.12); }
+#music-btn:hover { background:rgba(76,175,80,0.28); }
+#music-btn.muted { color:#ef9a9a; background:rgba(244,67,54,0.12); }
+
+/* Action buttons — fixed bottom left */
+#abts-area {
+  position:fixed; bottom:28px; left:18px; z-index:30;
+  display:none; flex-direction:column; gap:10px; align-items:center;
+  pointer-events:all;
+}
+.abt {
+  width:58px; height:58px; border-radius:50%;
+  background:rgba(255,255,255,0.13); border:2px solid rgba(255,255,255,0.28);
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; cursor:pointer; backdrop-filter:blur(4px);
+}
+.abt:active { background:rgba(245,166,35,0.5); border-color:#ffd700; transform:scale(0.92); }
+#bdash { border-color:#3498db; background:rgba(52,152,219,0.2); }
+
+/* egg button */
+#egg-btn {
+  position:fixed; bottom:138px; left:50%; transform:translateX(-50%);
+  background:rgba(255,215,0,0.2); border:2px solid #ffd700; border-radius:28px;
+  padding:9px 22px; color:#ffd700; font-size:13px; font-weight:bold;
+  cursor:pointer; z-index:30; display:none; backdrop-filter:blur(4px);
+  font-family:'Courier New',monospace;
+}
+#egg-btn:active { transform:translateX(-50%) scale(0.93); }
+#egg-info {
+  position:fixed; bottom:182px; left:50%; transform:translateX(-50%);
+  color:#ffd700; font-size:12px; z-index:30; pointer-events:none; display:none;
+}
+
+/* reward info box */
+#reward-scr .reggs { font-size:44px; margin:8px 0; }
+#reward-scr .rtxt  { color:#ffd700; font-size:20px; font-weight:bold; }
+
+/* selector cards */
+.sel-card {
+  background:rgba(255,255,255,0.07); border:2px solid rgba(255,255,255,0.18);
+  border-radius:12px; padding:10px 8px; cursor:pointer; text-align:center;
+  color:#fff; font-family:'Courier New',monospace; font-size:12px;
+  transition:background .15s,border-color .15s;
+}
+.sel-card:active,.sel-card.chosen { background:rgba(245,166,35,0.3); border-color:#ffd700; }
+.sel-card .card-emoji { font-size:28px; display:block; margin-bottom:4px; }
+.sel-card .card-name  { font-weight:bold; font-size:13px; color:#ffd700; }
+.sel-card .card-skill { font-size:10px; color:#aaa; margin-top:3px; line-height:1.4; }
+.color-dot {
+  width:26px; height:26px; border-radius:50%; cursor:pointer;
+  border:3px solid transparent; transition:border-color .15s, transform .15s;
+}
+.color-dot.chosen,.color-dot:active { border-color:#ffd700; transform:scale(1.25); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Pi Network Auth Overlay — shown on load, hidden after auth -->
+<div id="pi-auth-overlay">
+  <div class="pi-logo">π</div>
+  <h1>Kuku vs Mwewe</h1>
+  <p>Ingia kwa akaunti yako ya Pi Network ili kucheza na kuhifadhi maendeleo yako.</p>
+  <div id="pi-auth-status">Inaunganisha Pi Network…</div>
+  <button id="pi-signin-btn" disabled>
+    <span>π</span> Ingia na Pi Network
+  </button>
+  <button id="pi-skip-btn">Endelea bila kuingia</button>
+</div>
+
+<!-- Pi user badge (shown during gameplay) -->
+<div id="pi-user-badge">π <span id="pi-username-lbl">mchezaji</span></div>
+
+<!-- HUD (hidden until game starts) -->
+<div id="hud">
+  <div class="hbox"><span>LEVEL</span><b id="hlvl">1</b></div>
+  <div id="hpbar-wrap">
+    <div id="hpbar-label">
+      <span>🐔 <span id="hpnum">100</span>%</span>
+      <span id="hfeat-lbl">🪶<span id="hfeat">0</span></span>
+    </div>
+    <div id="hpbar-bg"><div id="hpbar"></div></div>
+  </div>
+  <div class="hbox"><span>SCORE</span><b id="hscore">0</b></div>
+</div>
+
+<!-- Attack counter -->
+<div id="atk-badge"><span id="atk-lbl">Mashambulio</span>: <span id="atk-num">0</span>/5 🦅</div>
+
+<!-- Drag joystick pad — bottom right -->
+<div id="drag-pad">
+  <div id="drag-pad-inner"></div>
+  <span id="drag-pad-label">drag</span>
+</div>
+
+<!-- Floating right-side buttons (vertical column) -->
+<div id="game-btns">
+  <div id="pause-float" class="gb">⏸</div>
+  <div id="fs-btn"      class="gb">⛶</div>
+  <div id="music-btn"   class="gb">🎵</div>
+</div>
+
+<!-- Action buttons — bottom left -->
+<div id="abts-area">
+  <div class="abt" id="bdash">💨</div>
+  <div class="abt" id="bjump">↑</div>
+</div>
+
+<div id="egg-btn">🥚 Tumia Yai (+20% Afya)</div>
+<div id="egg-info">Mayai: <span id="eggnum">0</span> 🥚</div>
+
+<!-- ── SCREENS ─────────────────────────────────────────── -->
+
+<!-- START -->
+<div id="start-scr" class="screen">
+  <div class="title" id="ui-gametitle">KUKU<br>VS<br>MWEWE</div>
+  <div class="emoji-big">🐔⚔️🦅</div>
+  <div style="width:100%;max-width:400px;margin:0 22px 10px;position:relative;">
+    <button id="desc-toggle-btn" onclick="toggleDesc()" style="
+      width:100%; background:linear-gradient(135deg,#ffd700,#f5a623);
+      border:none; border-radius:14px; color:#1a0a00;
+      font-size:15px; font-weight:900;
+      padding:14px 18px; cursor:pointer; font-family:'Courier New',monospace;
+      display:flex; align-items:center; justify-content:space-between;
+      box-shadow:0 4px 18px rgba(255,200,0,0.4);
+    ">
+      <span id="desc-btn-lbl">📖 Maelezo ya Mchezo</span>
+      <span id="desc-arrow" style="font-size:18px;transition:transform .3s">▼</span>
+    </button>
+    <div id="ui-desc" style="
+      display:none;
+      color:#ffffff; font-size:13px; text-align:left;
+      line-height:1.8; background:rgba(0,0,0,0.6);
+      border:2px solid rgba(245,166,35,0.3); border-top:none;
+      border-radius:0 0 14px 14px; padding:14px 16px;
+      max-height:180px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    ">Wewe ni mfugaji bora wa kuku, unayependa usalama wa kuku wako. Maeneo unayofugia kuna mwewe na falcon wanaoshambulia kuku na kuwafanya kitoweo. Una jukumu la kulinda kuku wako asiliwe. Kila unapofanikiwa kumlinda unapata zawadi ya yai ambalo kuku anatagana. Iwapo utashindwa, yai lililokwisha tagwa litatumika kurudisha afya ya kuku.</div>
+  </div>
+  <button class="btn" id="sbtn">▶ Anza Ulinzi Sasa</button>
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <button class="btn sec" id="pick-chicken-btn" style="font-size:13px;padding:10px 16px">🐔 <span id="pick-chicken-lbl">Chagua Kuku</span></button>
+    <button class="btn sec" id="pick-hawk-btn"    style="font-size:13px;padding:10px 16px">🦅 <span id="pick-hawk-lbl">Chagua Mwewe</span></button>
+  </div>
+  <button class="btn sec" id="lang-change-btn" style="font-size:14px;padding:10px 28px;margin-top:2px">
+    🌐 <span id="ui-lang-btn-lbl">Badilisha Lugha</span>
+  </button>
+</div>
+
+<!-- CHICKEN SELECTOR -->
+<div id="chicken-scr" class="screen hidden" style="padding:0">
+  <div style="width:100%;max-width:500px;height:100%;display:flex;flex-direction:column;align-items:center;padding:16px 12px;overflow:hidden">
+    <div class="title" id="chicken-scr-title" style="font-size:26px;margin-bottom:4px">🐔 Chagua Kuku Wako</div>
+    <div id="chicken-scr-sub" style="color:#c8956c;font-size:12px;margin-bottom:10px">Kila aina ina ujuzi tofauti wa kukwepa</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;width:100%">
+      <button class="tab-btn active" id="tab-hen" onclick="switchChickenTab('hen')" style="flex:1;padding:8px;border-radius:10px;background:rgba(245,166,35,0.4);border:2px solid #f5a623;color:#fff;font-family:'Courier New',monospace;font-size:13px;cursor:pointer"><span id="tab-hen-lbl">🐔 Kuku (Hen)</span></button>
+      <button class="tab-btn" id="tab-rooster" onclick="switchChickenTab('rooster')" style="flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.2);color:#fff;font-family:'Courier New',monospace;font-size:13px;cursor:pointer"><span id="tab-rooster-lbl">🐓 Jogoo</span></button>
+    </div>
+    <div id="chicken-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;overflow-y:auto;flex:1;padding-bottom:10px;-webkit-overflow-scrolling:touch"></div>
+    <div style="margin:8px 0;width:100%">
+      <div id="chicken-color-lbl" style="color:#ffd700;font-size:12px;margin-bottom:5px">🎨 Rangi ya Kuku</div>
+      <div id="chicken-colors" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <canvas id="chicken-preview" width="80" height="80" style="background:rgba(255,255,255,0.05);border-radius:12px;margin:4px 0"></canvas>
+    <button class="btn" id="chicken-ok-btn" style="margin-top:8px;padding:11px 40px;font-size:15px">✅ <span id="chicken-ok-lbl">Sawa</span></button>
+  </div>
+</div>
+
+<!-- HAWK SELECTOR -->
+<div id="hawk-scr" class="screen hidden" style="padding:0">
+  <div style="width:100%;max-width:500px;height:100%;display:flex;flex-direction:column;align-items:center;padding:16px 12px;overflow:hidden">
+    <div class="title" id="hawk-scr-title" style="font-size:26px;margin-bottom:4px">🦅 Chagua Adui Wako</div>
+    <div id="hawk-scr-sub" style="color:#c8956c;font-size:12px;margin-bottom:10px">Kila aina ina nguvu tofauti za kushambulia</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;width:100%">
+      <button class="tab-btn active" id="tab-hawk" onclick="switchHawkTab('hawk')" style="flex:1;padding:8px;border-radius:10px;background:rgba(231,76,60,0.4);border:2px solid #e74c3c;color:#fff;font-family:'Courier New',monospace;font-size:13px;cursor:pointer"><span id="tab-hawk-lbl">🦅 Mwewe (Hawk)</span></button>
+      <button class="tab-btn" id="tab-falcon" onclick="switchHawkTab('falcon')" style="flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.2);color:#fff;font-family:'Courier New',monospace;font-size:13px;cursor:pointer"><span id="tab-falcon-lbl">🐦 Falcon</span></button>
+    </div>
+    <div id="hawk-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;overflow-y:auto;flex:1;padding-bottom:10px;-webkit-overflow-scrolling:touch"></div>
+    <div style="margin:8px 0;width:100%">
+      <div id="hawk-color-lbl" style="color:#ffd700;font-size:12px;margin-bottom:5px">🎨 Rangi ya Mwewe</div>
+      <div id="hawk-colors" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <canvas id="hawk-preview" width="80" height="80" style="background:rgba(255,255,255,0.05);border-radius:12px;margin:4px 0"></canvas>
+    <button class="btn" id="hawk-ok-btn" style="margin-top:8px;padding:11px 40px;font-size:15px">✅ <span id="hawk-ok-lbl">Sawa</span></button>
+  </div>
+</div>
+
+<!-- LEVEL COMPLETE / REWARD -->
+<div id="reward-scr" class="screen hidden">
+  <div class="emoji-big" id="remoji">🐔</div>
+  <div class="rtxt" id="rtitle">LEVEL IMEKAMILIKA!</div>
+  <div class="reggs" id="reggs">🥚</div>
+  <div class="sub" id="rdesc"></div>
+  <div style="color:#ffd700;font-size:18px;margin:4px 0" id="rscore"></div>
+  <div id="rstars" style="font-size:36px;margin:4px 0">⭐⭐⭐</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px;width:100%;max-width:320px">
+    <button class="btn" id="nbtn" style="width:100%">➡ LEVEL INAYOFUATA</button>
+    <div style="display:flex;gap:8px;width:100%">
+      <button class="btn sec" id="prev-lvl-btn" style="flex:1;font-size:14px;padding:11px 8px">⬅ <span id="prev-lvl-lbl">Level Iliyopita</span></button>
+      <button class="btn sec" id="reward-home-btn" style="flex:1;font-size:14px;padding:11px 8px">🏠 <span id="reward-home-lbl">Nyumbani</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="over-scr" class="screen hidden">
+  <div class="emoji-big">😱</div>
+  <div class="title" style="font-size:32px" id="over-title">MWEWE<br>AMEMCHUKUA!</div>
+  <div class="sub" id="over-sub">Kuku amenyakuliwa na mwewe! 😭<br>Jaribu tena level hiyo hiyo.</div>
+  <div style="color:#ffd700;font-size:28px;font-weight:900;margin:8px" id="oscore"></div>
+  <div style="color:#f5a623;font-size:16px" id="olvl"></div>
+  <div style="font-size:34px;margin:6px" id="ostars"></div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px;width:100%;max-width:320px">
+    <button class="btn" id="rbtn" style="width:100%">🔄 JARIBU TENA</button>
+    <div style="display:flex;gap:8px;width:100%">
+      <button class="btn sec" id="over-prev-btn" style="flex:1;font-size:14px;padding:11px 8px">⬅ <span id="over-prev-lbl">Level Iliyopita</span></button>
+      <button class="btn sec" id="home-btn" style="flex:1;font-size:14px;padding:11px 8px">🏠 <span id="home-lbl">Nyumbani</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- WIN (all 12 levels done) -->
+<div id="win-scr" class="screen hidden">
+  <div class="title" style="font-size:36px">🏆 UMESHINDA! 🏆</div>
+  <div class="emoji-big">🐔💪✨</div>
+  <div class="sub">Umekamilisha levels zote 12!<br>Kuku ni shujaa mkubwa!</div>
+  <div style="color:#ffd700;font-size:30px;font-weight:900;margin:10px" id="wscore"></div>
+  <div style="font-size:40px">🌟🌟🌟🌟🌟</div>
+  <button class="btn" id="wbtn">🔄 CHEZA TENA</button>
+</div>
+
+<!-- LANGUAGE SCREEN -->
+<div id="lang-scr" class="screen hidden" style="padding:0;">
+  <div style="width:100%;max-width:480px;padding:20px 16px;display:flex;flex-direction:column;align-items:center;height:100%;overflow:hidden;">
+    <div class="title" style="font-size:30px;margin-bottom:4px">🌐 Lugha / Language</div>
+    <div id="lang-sub" style="color:#c8956c;font-size:13px;margin-bottom:12px">Chagua lugha yako / Choose your language</div>
+    <div id="lang-grid" style="
+      display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
+      overflow-y:auto; width:100%; flex:1; padding:4px 2px 12px;
+      -webkit-overflow-scrolling:touch;
+    "></div>
+    <button class="btn" id="lang-ok-btn" style="margin-top:12px;font-size:16px;padding:12px 36px">✅ Sawa / OK</button>
+  </div>
+</div>
+
+<style>
+.lang-btn {
+  background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.2);
+  border-radius:10px; color:#fff; font-size:13px; padding:10px 8px;
+  cursor:pointer; font-family:'Courier New',monospace; text-align:center;
+  transition:background .15s, border-color .15s;
+}
+.lang-btn:active, .lang-btn.selected {
+  background:rgba(245,166,35,0.35); border-color:#ffd700; color:#ffd700;
+}
+</style>
+
+<script>
+// ── I18N LANGUAGES ───────────────────────────────────────
+const LANGS = {
+  sw: { name:'Kiswahili 🇹🇿', gameTitle:'KUKU VS MWEWE',
+    desc:'Wewe ni mfugaji bora wa kuku, unayependa usalama wa kuku wako. Maeneo unayofugia kuna mwewe na falcon wanaoshambulia kuku na kuwafanya kitoweo. Una jukumu la kulinda kuku wako asiliwe. Kila unapofanikiwa kumlinda unapata zawadi ya yai ambalo kuku anatagana. Iwapo utashindwa, yai lililokwisha tagwa litatumika kurudisha afya ya kuku.',
+    start:'▶ Anza Ulinzi Sasa', langBtn:'Badilisha Lugha',
+    levelDone:'LEVEL IMEKAMILIKA!', nextLevel:'➡ LEVEL INAYOFUATA',
+    gameOver:'MWEWE\nAMEMCHUKUA!', overSub:'Kuku amenyakuliwa! 😭\nJaribu tena level hiyo.',
+    retry:'🔄 JARIBU TENA', winTitle:'UMESHINDA!', winSub:'Umekamilisha levels zote 12!\nKuku ni shujaa mkubwa!',
+    playAgain:'🔄 CHEZA TENA', score:'Score', level:'Level', health:'Afya',
+    feathers:'Manyoya', eggs:'Mayai', dodged:'Mashambulio yaliyokoswa',
+    useEgg:'🥚 Tumia Yai (+20% Afya)', paused:'IMESIMAMA', resumeHint:'Bonyeza ⏸ kuendelea',
+    rewardJogoo:(e,all)=>`Kuku amepandwa na jogoo na kukutagia mayai ${e}! 🐓❤️\nMayai yote: ${all} 🥚`,
+    rewardEgg:(e,all)=>`Kuku amekutagia yai ${e}! 🎉\nMayai yote: ${all} 🥚`,
+    levelFlash:(n)=>`LEVEL ${n}`, reachedLevel:(n)=>`Umefika Level: ${n} / 12`,
+    chooseLang:'Chagua Lugha', chooseSub:'Choose your language / Chagua lugha yako',
+    descBtn:'Maelezo ya Mchezo', homeBtn:'Nyumbani', prevLevel:'Level Iliyopita',
+    pickChicken:'Chagua Kuku', pickHawk:'Chagua Mwewe',
+    chickenScrTitle:'Chagua Kuku Wako', chickenScrSub:'Kila aina ina ujuzi tofauti wa kukwepa',
+    hawkScrTitle:'Chagua Adui Wako', hawkScrSub:'Kila aina ina nguvu tofauti za kushambulia',
+    tabHen:'🐔 Kuku (Hen)', tabRooster:'🐓 Jogoo',
+    tabHawk:'🦅 Mwewe (Hawk)', tabFalcon:'🐦 Falcon',
+    chickenColorLbl:'🎨 Rangi ya Kuku', hawkColorLbl:'🎨 Rangi ya Mwewe',
+    okBtn:'Sawa' },
+
+  en: { name:'English 🇬🇧', gameTitle:'HEN VS HAWK',
+    desc:'You are a master poultry farmer who cares deeply about the safety of your chickens. Hawks and falcons roam the skies above your farm, swooping down to snatch your hens and make a meal of them. Your duty is to protect your flock from being taken. Each time you succeed, the hen rewards you with an egg. Should you fail, any eggs already laid can be used to restore the hen\'s health.',
+    start:'▶ Start Defending Now', langBtn:'Change Language',
+    levelDone:'LEVEL COMPLETE!', nextLevel:'➡ NEXT LEVEL',
+    gameOver:'HAWK GOT\nYOUR HEN!', overSub:'The hawk snatched your hen! 😭\nTry this level again.',
+    retry:'🔄 TRY AGAIN', winTitle:'YOU WIN!', winSub:'You completed all 12 levels!\nYour hen is a legend!',
+    playAgain:'🔄 PLAY AGAIN', score:'Score', level:'Level', health:'Health',
+    feathers:'Feathers', eggs:'Eggs', dodged:'Dodged attacks',
+    useEgg:'🥚 Use Egg (+20% Health)', paused:'PAUSED', resumeHint:'Tap ⏸ to resume',
+    rewardJogoo:(e,all)=>`The rooster visited! Hen laid ${e} eggs! 🐓❤️\nTotal eggs: ${all} 🥚`,
+    rewardEgg:(e,all)=>`Hen laid ${e} egg(s)! 🎉\nTotal eggs: ${all} 🥚`,
+    levelFlash:(n)=>`LEVEL ${n}`, reachedLevel:(n)=>`Reached Level: ${n} / 12`,
+    chooseLang:'Choose Language', chooseSub:'Select your preferred language',
+    descBtn:'Game Description', homeBtn:'Home', prevLevel:'Previous Level',
+    pickChicken:'Choose Chicken', pickHawk:'Choose Enemy',
+    chickenScrTitle:'Choose Your Chicken', chickenScrSub:'Each type has unique dodging skills',
+    hawkScrTitle:'Choose Your Enemy', hawkScrSub:'Each type has unique attack abilities',
+    tabHen:'🐔 Hen', tabRooster:'🐓 Rooster',
+    tabHawk:'🦅 Hawk', tabFalcon:'🐦 Falcon',
+    chickenColorLbl:'🎨 Chicken Color', hawkColorLbl:'🎨 Enemy Color',
+    okBtn:'OK' },
+
+  fr: { name:'Français 🇫🇷', gameTitle:'POULE VS FAUCON',
+    desc:'Vous êtes un éleveur de poules passionné. Des éperviers et faucons menacent votre basse-cour. Protégez vos poules des attaques. Chaque victoire vous rapporte un œuf. En cas d\'échec, les œufs récoltés restaurent la santé de la poule.',
+    start:'▶ Commencer la Défense', langBtn:'Changer de Langue',
+    levelDone:'NIVEAU TERMINÉ!', nextLevel:'➡ NIVEAU SUIVANT',
+    gameOver:'LE FAUCON\nA GAGNÉ!', overSub:'Le faucon a attrapé votre poule! 😭',
+    retry:'🔄 RÉESSAYER', winTitle:'VICTOIRE!', winSub:'Tous les 12 niveaux complétés!',
+    playAgain:'🔄 REJOUER', score:'Score', level:'Niveau', health:'Santé',
+    feathers:'Plumes', eggs:'Œufs', dodged:'Attaques évitées',
+    useEgg:'🥚 Utiliser un Œuf (+20%)', paused:'PAUSE', resumeHint:'Appuyez ⏸ pour reprendre',
+    rewardJogoo:(e,all)=>`Le coq est passé! ${e} œufs pondus! 🐓❤️\nTotal: ${all} 🥚`,
+    rewardEgg:(e,all)=>`Poule a pondu ${e} œuf(s)! 🎉\nTotal: ${all} 🥚`,
+    levelFlash:(n)=>`NIVEAU ${n}`, reachedLevel:(n)=>`Niveau atteint: ${n} / 12`,
+    chooseLang:'Choisir la Langue', chooseSub:'Sélectionnez votre langue préférée' },
+
+  es: { name:'Español 🇪🇸', gameTitle:'GALLINA VS HALCÓN',
+    desc:'Eres un granjero experto que ama la seguridad de sus gallinas. Halcones y gavilanes atacan tu granja. Protege a tus gallinas. Cada victoria trae un huevo de recompensa. Si fallas, usa los huevos para restaurar la salud.',
+    start:'▶ Empezar la Defensa', langBtn:'Cambiar Idioma',
+    levelDone:'¡NIVEL COMPLETO!', nextLevel:'➡ SIGUIENTE NIVEL',
+    gameOver:'¡EL HALCÓN\nATRAPÓ LA GALLINA!', overSub:'¡El halcón se llevó tu gallina! 😭',
+    retry:'🔄 INTENTAR DE NUEVO', winTitle:'¡GANASTE!', winSub:'¡Completaste los 12 niveles!',
+    playAgain:'🔄 JUGAR DE NUEVO', score:'Puntos', level:'Nivel', health:'Salud',
+    feathers:'Plumas', eggs:'Huevos', dodged:'Ataques esquivados',
+    useEgg:'🥚 Usar Huevo (+20%)', paused:'PAUSADO', resumeHint:'Toca ⏸ para continuar',
+    rewardJogoo:(e,all)=>`¡El gallo visitó! ${e} huevos puestos! 🐓❤️\nTotal: ${all} 🥚`,
+    rewardEgg:(e,all)=>`¡Gallina puso ${e} huevo(s)! 🎉\nTotal: ${all} 🥚`,
+    levelFlash:(n)=>`NIVEL ${n}`, reachedLevel:(n)=>`Nivel alcanzado: ${n} / 12`,
+    chooseLang:'Elegir Idioma', chooseSub:'Selecciona tu idioma preferido' },
+
+  pt: { name:'Português 🇧🇷', gameTitle:'GALINHA VS FALCÃO',
+    desc:'Você é um criador de galinhas dedicado. Falcões e gaviões ameaçam seu galinheiro. Proteja suas galinhas. Cada vitória garante um ovo de recompensa. Se falhar, use os ovos para restaurar a saúde.',
+    start:'▶ Iniciar Defesa', langBtn:'Mudar Idioma',
+    levelDone:'NÍVEL COMPLETO!', nextLevel:'➡ PRÓXIMO NÍVEL',
+    gameOver:'O FALCÃO\nPEGOU A GALINHA!', overSub:'O falcão capturou sua galinha! 😭',
+    retry:'🔄 TENTAR NOVAMENTE', winTitle:'VOCÊ GANHOU!', winSub:'Completou todos os 12 níveis!',
+    playAgain:'🔄 JOGAR NOVAMENTE', score:'Pontos', level:'Nível', health:'Saúde',
+    feathers:'Penas', eggs:'Ovos', dodged:'Ataques desviados',
+    useEgg:'🥚 Usar Ovo (+20%)', paused:'PAUSADO', resumeHint:'Toque ⏸ para continuar',
+    rewardJogoo:(e,all)=>`O galo veio! ${e} ovos postos! 🐓❤️\nTotal: ${all} 🥚`,
+    rewardEgg:(e,all)=>`Galinha botou ${e} ovo(s)! 🎉\nTotal: ${all} 🥚`,
+    levelFlash:(n)=>`NÍVEL ${n}`, reachedLevel:(n)=>`Nível atingido: ${n} / 12`,
+    chooseLang:'Escolher Idioma', chooseSub:'Selecione seu idioma preferido' },
+
+  de: { name:'Deutsch 🇩🇪', gameTitle:'HUHN VS FALKE',
+    desc:'Du bist ein leidenschaftlicher Hühnerhalter. Falken und Habichte bedrohen deinen Hof. Schütze deine Hühner vor Angriffen. Jeder Sieg bringt ein Ei als Belohnung. Bei einer Niederlage helfen gesammelte Eier, die Gesundheit wiederherzustellen.',
+    start:'▶ Jetzt Verteidigen', langBtn:'Sprache Wechseln',
+    levelDone:'LEVEL ABGESCHLOSSEN!', nextLevel:'➡ NÄCHSTES LEVEL',
+    gameOver:'DER FALKE\nHAT GEWONNEN!', overSub:'Der Falke hat dein Huhn erwischt! 😭',
+    retry:'🔄 NOCHMAL VERSUCHEN', winTitle:'GEWONNEN!', winSub:'Alle 12 Level abgeschlossen!',
+    playAgain:'🔄 NOCHMAL SPIELEN', score:'Punkte', level:'Level', health:'Gesundheit',
+    feathers:'Federn', eggs:'Eier', dodged:'Ausgewichene Angriffe',
+    useEgg:'🥚 Ei Verwenden (+20%)', paused:'PAUSE', resumeHint:'⏸ drücken zum Fortfahren',
+    rewardJogoo:(e,all)=>`Der Hahn kam! ${e} Eier gelegt! 🐓❤️\nGesamt: ${all} 🥚`,
+    rewardEgg:(e,all)=>`Huhn legte ${e} Ei(er)! 🎉\nGesamt: ${all} 🥚`,
+    levelFlash:(n)=>`LEVEL ${n}`, reachedLevel:(n)=>`Level erreicht: ${n} / 12`,
+    chooseLang:'Sprache Wählen', chooseSub:'Wähle deine bevorzugte Sprache' },
+
+  ar: { name:'العربية 🇸🇦', gameTitle:'الدجاجة ضد الصقر',
+    desc:'أنت مربي دجاج ماهر تهتم بسلامة دجاجاتك. الصقور والبازات تهاجم مزرعتك وتسعى لأكل دجاجاتك. مهمتك حماية دجاجاتك. كل نجاح يكافئك ببيضة. إذا فشلت، تُستخدم البيض لاستعادة صحة الدجاجة.',
+    start:'▶ ابدأ الدفاع الآن', langBtn:'تغيير اللغة',
+    levelDone:'!اكتملت المرحلة', nextLevel:'المرحلة التالية ➡',
+    gameOver:'!الصقر\nانتصر', overSub:'!الصقر أمسك دجاجتك 😭',
+    retry:'🔄 حاول مرة أخرى', winTitle:'!فزت', winSub:'أكملت جميع المراحل الـ12',
+    playAgain:'🔄 العب مجدداً', score:'النقاط', level:'المرحلة', health:'الصحة',
+    feathers:'الريش', eggs:'البيض', dodged:'هجمات متهرب منها',
+    useEgg:'🥚 استخدم بيضة (+20%)', paused:'متوقف', resumeHint:'اضغط ⏸ للمتابعة',
+    rewardJogoo:(e,all)=>`الديك زار! وضعت ${e} بيضة! 🐓❤️\nالمجموع: ${all} 🥚`,
+    rewardEgg:(e,all)=>`وضعت الدجاجة ${e} بيضة! 🎉\nالمجموع: ${all} 🥚`,
+    levelFlash:(n)=>`مرحلة ${n}`, reachedLevel:(n)=>`وصلت إلى: ${n} / 12`,
+    chooseLang:'اختر اللغة', chooseSub:'اختر لغتك المفضلة' },
+
+  zh: { name:'中文 🇨🇳', gameTitle:'母鸡 VS 老鹰',
+    desc:'你是一位热爱鸡只安全的优秀养鸡人。农场上空的鹰和猎鹰虎视眈眈，随时准备俯冲抓走你的鸡。你的任务是保护你的鸡不被抓走。每次成功保护都会获得鸡蛋奖励。若失败，已得的鸡蛋可用来恢复母鸡的体力。',
+    start:'▶ 立即开始防御', langBtn:'更改语言',
+    levelDone:'关卡完成！', nextLevel:'➡ 下一关',
+    gameOver:'老鹰\n抓走了母鸡！', overSub:'老鹰抓走了你的母鸡！😭',
+    retry:'🔄 再试一次', winTitle:'你赢了！', winSub:'完成了全部12关！',
+    playAgain:'🔄 再玩一次', score:'得分', level:'关卡', health:'体力',
+    feathers:'羽毛', eggs:'鸡蛋', dodged:'已躲避攻击',
+    useEgg:'🥚 使用鸡蛋(+20%)', paused:'暂停', resumeHint:'点击⏸继续',
+    rewardJogoo:(e,all)=>`公鸡来访！下了${e}个蛋！🐓❤️\n共计：${all}🥚`,
+    rewardEgg:(e,all)=>`母鸡下了${e}个蛋！🎉\n共计：${all}🥚`,
+    levelFlash:(n)=>`第${n}关`, reachedLevel:(n)=>`到达第${n}/12关`,
+    chooseLang:'选择语言', chooseSub:'请选择您的首选语言' },
+
+  ja: { name:'日本語 🇯🇵', gameTitle:'ニワトリ VS タカ',
+    desc:'あなたは鶏の安全を大切にする優秀な養鶏家です。農場の上空にはタカとハヤブサが飛び回り、鶏を狙っています。鶏を守るのがあなたの使命です。守るたびに卵がもらえます。失敗した場合は、集めた卵で鶏の体力を回復できます。',
+    start:'▶ 今すぐ防衛開始', langBtn:'言語を変更',
+    levelDone:'レベルクリア！', nextLevel:'➡ 次のレベル',
+    gameOver:'タカに\nやられた！', overSub:'タカが鶏をさらっていった！😭',
+    retry:'🔄 もう一度', winTitle:'クリア！', winSub:'全12レベルをクリアした！',
+    playAgain:'🔄 もう一度プレイ', score:'スコア', level:'レベル', health:'体力',
+    feathers:'羽', eggs:'卵', dodged:'回避した攻撃',
+    useEgg:'🥚 卵を使う(+20%)', paused:'一時停止', resumeHint:'⏸を押して再開',
+    rewardJogoo:(e,all)=>`オンドリが来た！${e}個産卵！🐓❤️\n合計：${all}🥚`,
+    rewardEgg:(e,all)=>`鶏が${e}個産卵！🎉\n合計：${all}🥚`,
+    levelFlash:(n)=>`レベル${n}`, reachedLevel:(n)=>`到達レベル：${n}/12`,
+    chooseLang:'言語を選ぶ', chooseSub:'お好みの言語を選択してください' },
+
+  ko: { name:'한국어 🇰🇷', gameTitle:'닭 VS 매',
+    desc:'당신은 닭의 안전을 소중히 여기는 훌륭한 양계 농부입니다. 농장 위에는 매와 독수리가 닭을 노리고 있습니다. 닭을 지키는 것이 당신의 사명입니다. 성공할 때마다 달걀을 보상으로 받습니다. 실패하면 모아둔 달걀로 닭의 체력을 회복할 수 있습니다.',
+    start:'▶ 지금 방어 시작', langBtn:'언어 변경',
+    levelDone:'레벨 완료!', nextLevel:'➡ 다음 레벨',
+    gameOver:'매가\n닭을 잡았다!', overSub:'매가 닭을 채갔어요! 😭',
+    retry:'🔄 다시 시도', winTitle:'승리!', winSub:'모든 12레벨 완료!',
+    playAgain:'🔄 다시 플레이', score:'점수', level:'레벨', health:'체력',
+    feathers:'깃털', eggs:'달걀', dodged:'회피한 공격',
+    useEgg:'🥚 달걀 사용(+20%)', paused:'일시정지', resumeHint:'⏸를 눌러 재개',
+    rewardJogoo:(e,all)=>`수탉이 왔어요! 달걀 ${e}개! 🐓❤️\n합계: ${all}🥚`,
+    rewardEgg:(e,all)=>`닭이 달걀 ${e}개 낳았어요! 🎉\n합계: ${all}🥚`,
+    levelFlash:(n)=>`레벨${n}`, reachedLevel:(n)=>`도달 레벨: ${n}/12`,
+    chooseLang:'언어 선택', chooseSub:'선호하는 언어를 선택하세요' },
+
+  hi: { name:'हिन्दी 🇮🇳', gameTitle:'मुर्गी VS बाज',
+    desc:'आप एक कुशल मुर्गी पालक हैं जो अपनी मुर्गियों की सुरक्षा को प्राथमिकता देते हैं। आपके फार्म पर बाज और शिकारी पक्षी हमला करते हैं। आपका काम है अपनी मुर्गियों को बचाना। हर सफलता पर आपको अंडे का पुरस्कार मिलता है। असफल होने पर अंडे से मुर्गी की सेहत वापस लाएं।',
+    start:'▶ सुरक्षा शुरू करें', langBtn:'भाषा बदलें',
+    levelDone:'स्तर पूर्ण!', nextLevel:'➡ अगला स्तर',
+    gameOver:'बाज ने\nपकड़ लिया!', overSub:'बाज ने मुर्गी को उठा लिया! 😭',
+    retry:'🔄 फिर कोशिश करें', winTitle:'जीत गए!', winSub:'सभी 12 स्तर पूर्ण!',
+    playAgain:'🔄 फिर खेलें', score:'स्कोर', level:'स्तर', health:'स्वास्थ्य',
+    feathers:'पंख', eggs:'अंडे', dodged:'टाले गए हमले',
+    useEgg:'🥚 अंडा उपयोग करें (+20%)', paused:'रुका हुआ', resumeHint:'⏸ दबाएं जारी रखने के लिए',
+    rewardJogoo:(e,all)=>`मुर्गा आया! ${e} अंडे दिए! 🐓❤️\nकुल: ${all}🥚`,
+    rewardEgg:(e,all)=>`मुर्गी ने ${e} अंडे दिए! 🎉\nकुल: ${all}🥚`,
+    levelFlash:(n)=>`स्तर ${n}`, reachedLevel:(n)=>`पहुंचे: ${n}/12`,
+    chooseLang:'भाषा चुनें', chooseSub:'अपनी पसंदीदा भाषा चुनें' },
+
+  ru: { name:'Русский 🇷🇺', gameTitle:'КУРИЦА VS ЯСТРЕБ',
+    desc:'Вы опытный птицевод, который заботится о безопасности своих кур. Ястребы и соколы нападают на ваш птичник. Защищайте кур от нападений. За каждую победу вы получаете яйцо в награду. В случае неудачи яйца можно использовать для восстановления здоровья.',
+    start:'▶ Начать Защиту', langBtn:'Сменить Язык',
+    levelDone:'УРОВЕНЬ ПРОЙДЕН!', nextLevel:'➡ СЛЕДУЮЩИЙ УРОВЕНЬ',
+    gameOver:'ЯСТРЕБ\nПОБЕДИЛ!', overSub:'Ястреб поймал курицу! 😭',
+    retry:'🔄 ПОПРОБОВАТЬ СНОВА', winTitle:'ПОБЕДА!', winSub:'Все 12 уровней пройдены!',
+    playAgain:'🔄 ИГРАТЬ СНОВА', score:'Счёт', level:'Уровень', health:'Здоровье',
+    feathers:'Перья', eggs:'Яйца', dodged:'Уклонений',
+    useEgg:'🥚 Использовать Яйцо (+20%)', paused:'ПАУЗА', resumeHint:'Нажмите ⏸ для продолжения',
+    rewardJogoo:(e,all)=>`Петух пришёл! ${e} яиц снесено! 🐓❤️\nВсего: ${all}🥚`,
+    rewardEgg:(e,all)=>`Курица снесла ${e} яиц! 🎉\nВсего: ${all}🥚`,
+    levelFlash:(n)=>`УРОВЕНЬ ${n}`, reachedLevel:(n)=>`Достигнут: ${n}/12`,
+    chooseLang:'Выбор Языка', chooseSub:'Выберите предпочтительный язык' },
+
+  tr: { name:'Türkçe 🇹🇷', gameTitle:'TAVUK VS ŞAHIN',
+    desc:'En iyi tavuk çiftçisisin ve tavuklarının güvenliğini önemsiyorsun. Çiftliğinde şahinler ve doğanlar tavuklarına saldırıyor. Görevin tavuklarını korumak. Her başarıda tavuk sana yumurta hediye ediyor. Başarısız olursan biriktirdiğin yumurtaları tavuğun sağlığı için kullan.',
+    start:'▶ Savunmayı Başlat', langBtn:'Dil Değiştir',
+    levelDone:'SEVİYE TAMAMLANDI!', nextLevel:'➡ SONRAKİ SEVİYE',
+    gameOver:'ŞAHIN\nKAZANDI!', overSub:'Şahin tavuğunu kaptı! 😭',
+    retry:'🔄 TEKRAR DENE', winTitle:'KAZANDIN!', winSub:'Tüm 12 seviye tamamlandı!',
+    playAgain:'🔄 TEKRAR OYNA', score:'Puan', level:'Seviye', health:'Sağlık',
+    feathers:'Tüyler', eggs:'Yumurtalar', dodged:'Savuşturulan saldırılar',
+    useEgg:'🥚 Yumurta Kullan (+20%)', paused:'DURAKLATILDI', resumeHint:'Devam için ⏸ bas',
+    rewardJogoo:(e,all)=>`Horoz geldi! ${e} yumurta yumurtladı! 🐓❤️\nToplam: ${all}🥚`,
+    rewardEgg:(e,all)=>`Tavuk ${e} yumurta yumurtladı! 🎉\nToplam: ${all}🥚`,
+    levelFlash:(n)=>`SEVİYE ${n}`, reachedLevel:(n)=>`Ulaşılan: ${n}/12`,
+    chooseLang:'Dil Seçin', chooseSub:'Tercih ettiğiniz dili seçin' },
+
+  id: { name:'Bahasa Indonesia 🇮🇩', gameTitle:'AYAM VS ELANG',
+    desc:'Kamu adalah peternak ayam terbaik yang peduli pada keselamatan ayammu. Di kawasan peternakanmu ada elang dan falcon yang menyerang ayam. Tugasmu melindungi ayammu agar tidak dimangsa. Setiap keberhasilan memberi kamu hadiah telur. Jika gagal, gunakan telur untuk memulihkan kesehatan ayam.',
+    start:'▶ Mulai Pertahanan', langBtn:'Ganti Bahasa',
+    levelDone:'LEVEL SELESAI!', nextLevel:'➡ LEVEL BERIKUTNYA',
+    gameOver:'ELANG\nMENANGKAP!', overSub:'Elang menangkap ayammu! 😭',
+    retry:'🔄 COBA LAGI', winTitle:'MENANG!', winSub:'Semua 12 level selesai!',
+    playAgain:'🔄 MAIN LAGI', score:'Skor', level:'Level', health:'Kesehatan',
+    feathers:'Bulu', eggs:'Telur', dodged:'Serangan yang dihindari',
+    useEgg:'🥚 Gunakan Telur (+20%)', paused:'JEDA', resumeHint:'Ketuk ⏸ untuk lanjut',
+    rewardJogoo:(e,all)=>`Ayam jantan datang! ${e} telur ditetaskan! 🐓❤️\nTotal: ${all}🥚`,
+    rewardEgg:(e,all)=>`Ayam bertelur ${e} butir! 🎉\nTotal: ${all}🥚`,
+    levelFlash:(n)=>`LEVEL ${n}`, reachedLevel:(n)=>`Mencapai: ${n}/12`,
+    chooseLang:'Pilih Bahasa', chooseSub:'Pilih bahasa yang kamu sukai' },
+
+  ms: { name:'Bahasa Melayu 🇲🇾', gameTitle:'AYAM VS HELANG',
+    desc:'Anda adalah penternak ayam terbaik yang mengambil berat keselamatan ayam anda. Kawasan ternakan anda didiami helang dan falcon yang menyerang ayam. Tugas anda melindungi ayam anda. Setiap kejayaan memberi ganjaran telur. Jika gagal, gunakan telur untuk memulihkan kesihatan.',
+    start:'▶ Mulakan Pertahanan', langBtn:'Tukar Bahasa',
+    levelDone:'TAHAP SELESAI!', nextLevel:'➡ TAHAP SETERUSNYA',
+    gameOver:'HELANG\nMENANG!', overSub:'Helang menangkap ayam anda! 😭',
+    retry:'🔄 CUBA LAGI', winTitle:'MENANG!', winSub:'Semua 12 tahap selesai!',
+    playAgain:'🔄 MAIN LAGI', score:'Skor', level:'Tahap', health:'Kesihatan',
+    feathers:'Bulu', eggs:'Telur', dodged:'Serangan dielak',
+    useEgg:'🥚 Guna Telur (+20%)', paused:'BERHENTI', resumeHint:'Ketuk ⏸ untuk terus',
+    rewardJogoo:(e,all)=>`Ayam jantan datang! ${e} telur! 🐓❤️\nJumlah: ${all}🥚`,
+    rewardEgg:(e,all)=>`Ayam bertelur ${e} biji! 🎉\nJumlah: ${all}🥚`,
+    levelFlash:(n)=>`TAHAP ${n}`, reachedLevel:(n)=>`Capai: ${n}/12`,
+    chooseLang:'Pilih Bahasa', chooseSub:'Pilih bahasa pilihan anda' },
+
+  ha: { name:'Hausa 🇳🇬', gameTitle:'KAJI VS SHAHO',
+    desc:'Kai ne manon kaji mafi ƙwarewa, kana ƙaunar lafiyar kajinka. A wurin inda kake kiwon kaji akwai shaho da gaggafa da ke kai farmaki. Aikinku shi ne kiyaye kajinku. Kowace nasara tana kawo kwan kwai a matsayin ladan. Idan ka fadi, yi amfani da ƙwai don dawo da lafiyar kaji.',
+    start:'▶ Fara Tsaro Yanzu', langBtn:'Canza Harshe',
+    levelDone:'MATAKIN YA CIKA!', nextLevel:'➡ MATAKI NA GABA',
+    gameOver:'SHAHO\nYA CI!', overSub:'Shaho ya kama kajinku! 😭',
+    retry:'🔄 SAKE GWADAWA', winTitle:'KA CI!', winSub:'Ka kammala dukkan mataki 12!',
+    playAgain:'🔄 SAKE WASA', score:'Maki', level:'Matakin', health:'Lafiya',
+    feathers:'Gashin Tsuntsu', eggs:'Ƙwai', dodged:'Farmaki da aka kauce',
+    useEgg:'🥚 Yi amfani da Ƙwai (+20%)', paused:'AN TSAYAR', resumeHint:'Danna ⏸ don ci gaba',
+    rewardJogoo:(e,all)=>`Zakara ya zo! ${e} ƙwai! 🐓❤️\nJimillar: ${all}🥚`,
+    rewardEgg:(e,all)=>`Kaji ya yi ${e} ƙwai! 🎉\nJimillar: ${all}🥚`,
+    levelFlash:(n)=>`MATAKIN ${n}`, reachedLevel:(n)=>`An kai: ${n}/12`,
+    chooseLang:'Zaɓi Harshe', chooseSub:'Zaɓi harshen da kake so' },
+
+  yo: { name:'Yorùbá 🇳🇬', gameTitle:'ADÌẸ VS ESÚ',
+    desc:'Iwọ jẹ agbẹ adìẹ ti o dara julọ ti o nifẹ ailewu ti adìẹ rẹ. Ẹsú ati falcon n kọlu adìẹ ninu oko rẹ. Iṣẹ rẹ ni lati daabobo adìẹ rẹ. Igba ti o ba ṣaṣeyọri, iwọ gba ẹyin bi ẹsan. Ti o ba kuna, lo ẹyin lati mu ilera adìẹ pada.',
+    start:'▶ Bẹrẹ Aabo Bayi', langBtn:'Yipada Ede',
+    levelDone:'IPELE TI PARI!', nextLevel:'➡ IPELE TO NBỌ',
+    gameOver:'ESÚ\nJÈRÈ!', overSub:'Esú mu adìẹ rẹ! 😭',
+    retry:'🔄 GBIYANJU LẸẸKAN', winTitle:'O BORI!', winSub:'O pari gbogbo ipele 12!',
+    playAgain:'🔄 ṢE ERE LẸẸ', score:'Nọmba', level:'Ipele', health:'Ilera',
+    feathers:'Iyẹ', eggs:'Ẹyin', dodged:'Ikọlu ti a yẹra',
+    useEgg:'🥚 Lo Ẹyin (+20%)', paused:'DAWỌ DURO', resumeHint:'Tẹ ⏸ lati tẹsiwaju',
+    rewardJogoo:(e,all)=>`Akukọ wá! ${e} ẹyin! 🐓❤️\nApapọ: ${all}🥚`,
+    rewardEgg:(e,all)=>`Adìẹ gbe ${e} ẹyin! 🎉\nApapọ: ${all}🥚`,
+    levelFlash:(n)=>`IPELE ${n}`, reachedLevel:(n)=>`De: ${n}/12`,
+    chooseLang:'Yan Ede', chooseSub:'Yan ede ti o fẹ' },
+
+  ig: { name:'Igbo 🇳🇬', gameTitle:'OKỤ VS EGBE',
+    desc:'Ị bụ onye ọzụ ọkụ kacha mma nke hụrụ nchedo nke ọkụ gị n\'anya. N\'ebe ị na-azụ ọkụ, enwere egbe na falcon na-wakpo ha. Ọrụ gị bụ ichebe ọkụ gị. Mgbe ọ bụla ị nwere ihu ọma, ọkụ na-enye gị àki dị ka ụgwọ. Ọ bụrụ na ị emebiela, jiri àki gwa ahụike ọkụ.'  ,
+    start:'▶ Malite Nchebe Ugbu A', langBtn:'Gbanwee Asụsụ',
+    levelDone:'ỌKWA EMECHARA!', nextLevel:'➡ ỌKWA OZO',
+    gameOver:'EGBE\nEMERIRI!', overSub:'Egbe jidere ọkụ gị! 😭',
+    retry:'🔄 NWAA OZO', winTitle:'IMERIRI!', winSub:'Ichechara ọkwa niile 12!',
+    playAgain:'🔄 GARIA OZO', score:'Akara', level:'Ọkwa', health:'Ahụike',
+    feathers:'Ntu', eggs:'Àki', dodged:'Awakpo fụgara',
+    useEgg:'🥚 Jiri Àki (+20%)', paused:'KWỤSỊTỤ', resumeHint:'Pịa ⏸ ịgaa n\'ihu',
+    rewardJogoo:(e,all)=>`Oke ọkụ biara! ${e} àki! 🐓❤️\nNkenke: ${all}🥚`,
+    rewardEgg:(e,all)=>`Ọkụ kọọ ${e} àki! 🎉\nNkenke: ${all}🥚`,
+    levelFlash:(n)=>`ỌKWA ${n}`, reachedLevel:(n)=>`Rute: ${n}/12`,
+    chooseLang:'Họrọ Asụsụ', chooseSub:'Họrọ asụsụ ịchọ' },
+
+  so: { name:'Soomaali 🇸🇴', gameTitle:'DIGAAG VS DHEGDHEER',
+    desc:'Adiga oo ah beeraley digaag oo aqoon leh oo jecel nabadgelyo digaaggaaga. Dhulkaaga laga joogto waxaa ku jira dhegdheero iyo falcons kuwaas oo weerara digaaggaaga. Waxaad xilka qaadanaysaa in aad difaacdo digaaggaaga. Guul kasta oo aad gaarto kugu siinaysaa abaal oo ukun ah. Haddaad guuldareysato, ukumada la helayba waxaad u isticmaali kartaa soo celinta caafimaadka digaagga.',
+    start:'▶ Bilow Difaaca Hada', langBtn:'Beddel Luqadda',
+    levelDone:'HEERKA DHAMMAATAY!', nextLevel:'➡ HEERKII XIG',
+    gameOver:'DHEGDHEERKII\nKU GUULEYSTAY!', overSub:'Dhegdheerkii qaatay digaaggaaga! 😭',
+    retry:'🔄 ISKU DAY LAAB', winTitle:'GUULEYSATAY!', winSub:'Dhammaantood 12 heer la dhammaystiriyay!',
+    playAgain:'🔄 CIYAAR LAAB', score:'Dhibcaha', level:'Heerka', health:'Caafimaad',
+    feathers:'Baalasha', eggs:'Ukunta', dodged:'Weerar la gacan saray',
+    useEgg:'🥚 Isticmaal Ukun (+20%)', paused:'JOOJINAYAA', resumeHint:'Riix ⏸ si aad u sii waddo',
+    rewardJogoo:(e,all)=>`Doorkii yimid! ${e} ukun! 🐓❤️\nGuud: ${all}🥚`,
+    rewardEgg:(e,all)=>`Digaaagu wuxuu dhalay ${e} ukun! 🎉\nGuud: ${all}🥚`,
+    levelFlash:(n)=>`HEERKA ${n}`, reachedLevel:(n)=>`Gaaray: ${n}/12`,
+    chooseLang:'Dooro Luqadda', chooseSub:'Xulo luqaddaada la doorbidayso' },
+
+  am: { name:'አማርኛ 🇪🇹', gameTitle:'ዶሮ vs ጭልፊት',
+    desc:'እርስዎ ዶሮዎችዎን ደህንነት የሚወዱ ምርጥ ዶሮ አርቢ ነዎት። ዶሮ የሚያርቡበት ቦታ ጭልፊቶች ዶሮዎቹን ለምሳ ሊወስዱ ይሞክራሉ። ዶሮዎቹን ለመጠበቅ ሓላፊነት አለብዎ። ሲሳካ ለሙ እንቁላል ሽልማት ይቀበላሉ። ካልሳካ፣ የተሰበሰቡ እንቁላሎች ዶሮዎን ጤና ለማስመለስ ይረዳሉ።',
+    start:'▶ አሁን ጠብቅ', langBtn:'ቋንቋ ቀይር',
+    levelDone:'ደረጃ ተጠናቀቀ!', nextLevel:'➡ ቀጣይ ደረጃ',
+    gameOver:'ጭልፊቱ\nዶሮን ወሰደ!', overSub:'ጭልፊቱ ዶሮዎን ወሰደ! 😭',
+    retry:'🔄 እንደገና ሞክር', winTitle:'አሸነፍሽ!', winSub:'ሁሉ 12 ደረጃዎች ተጠናቅቀዋል!',
+    playAgain:'🔄 እንደገና ጫወት', score:'ነጥብ', level:'ደረጃ', health:'ጤና',
+    feathers:'ላባዎች', eggs:'እንቁላሎች', dodged:'የተሸለሙ ጥቃቶች',
+    useEgg:'🥚 እንቁላል ተጠቀም (+20%)', paused:'ቆሟል', resumeHint:'⏸ ተጫን ለቀጠለ',
+    rewardJogoo:(e,all)=>`ዶሮው ጎበኘ! ${e} እንቁላሎች! 🐓❤️\nጠቅላላ: ${all}🥚`,
+    rewardEgg:(e,all)=>`ዶሮ ${e} እንቁላሎች ጣለ! 🎉\nጠቅላላ: ${all}🥚`,
+    levelFlash:(n)=>`ደረጃ ${n}`, reachedLevel:(n)=>`ደርሷል: ${n}/12`,
+    chooseLang:'ቋንቋ ምረጥ', chooseSub:'የሚፈልጉትን ቋንቋ ይምረጡ' },
+
+  om: { name:'Afaan Oromoo 🇪🇹', gameTitle:'LUKKUU VS HAADHITTII',
+    desc:'Ati ogessa lukkuu gaarii kan nageenya lukkuutti jaallatu taate. Bakka ati lukkuu tiksitu haadhittii fi garbii lukkuu gurgurame nyaachuuf weeraru. Gaheen kee lukkuu kee tiksuudha. Yeroo milkaaawutti lukkuun kufee ulfaa siif kenniti. Yoo kufaatef kufaafan qabaatte fayya lukkuu deebisuuf itti fayyadami.',
+    start:'▶ Tiksuu Eegali', langBtn:'Afaan Jijjiiri',
+    levelDone:'SADARKAA XUMURAMEERA!', nextLevel:'➡ SADARKAA ITTI AANAA',
+    gameOver:'HAADHITTIIN\nMOOLTEE!', overSub:'Haadhittiin lukkuu kee fuute! 😭',
+    retry:'🔄 IRRA DEEBI\'I', winTitle:'MOOLTEETTA!', winSub:'Sadarkaaleen 12 hunduu xumurameera!',
+    playAgain:'🔄 IRRA TAPHADHU', score:'Qabxii', level:'Sadarkaa', health:'Fayyaa',
+    feathers:'Baallee', eggs:'Hanqaaquu', dodged:'Weerara dhoorkame',
+    useEgg:'🥚 Hanqaaquu Fayyadami (+20%)', paused:'DHAABBATEERA', resumeHint:'⏸ dhiiti itti fuusuuf',
+    rewardJogoo:(e,all)=>`Kormi dhufe! ${e} hanqaaquu! 🐓❤️\nWaliigala: ${all}🥚`,
+    rewardEgg:(e,all)=>`Lukkuun ${e} hanqaaquu kuffiste! 🎉\nWaliigala: ${all}🥚`,
+    levelFlash:(n)=>`SADARKAA ${n}`, reachedLevel:(n)=>`Gahe: ${n}/12`,
+    chooseLang:'Afaan Filadhu', chooseSub:'Afaan barbaaddu filadhu' },
+
+  rw: { name:'Kinyarwanda 🇷🇼', gameTitle:'INKOKO VS INKONA',
+    desc:'Uri umuhinzi w\'inkoko mwiza ukunda umutekano w\'inkoko zawe. Ahantu uhera inkoko hari inkona n\'inkonotsi zizitera inkoko kugira ngo zizihe. Inshingano yawe ni ukurinda inkoko zawe. Iyo utsinda uhabwa igi nk\'impemba. Niba utsindwa, amagi yavumwe akoresha mu gusubiza ubuzima bw\'inkoko.',
+    start:'▶ Tangira Kugabanya', langBtn:'Hindura Ururimi',
+    levelDone:'URWEGO RWARANGIYE!', nextLevel:'➡ URWEGO RUKURIKIRA',
+    gameOver:'INKONA\nITSINDE!', overSub:'Inkona yafashe inkoko yawe! 😭',
+    retry:'🔄 ONGERA UGERAGEZE', winTitle:'UTSINDE!', winSub:'Udureye urwego 12 rwose!',
+    playAgain:'🔄 ONGERA UKINISE', score:'Amanota', level:'Urwego', health:'Ubuzima',
+    feathers:'Inyoya', eggs:'Amagi', dodged:'Ibitero byirindwe',
+    useEgg:'🥚 Koresha Igi (+20%)', paused:'GUHAGAZE', resumeHint:'Kanda ⏸ gukomeza',
+    rewardJogoo:(e,all)=>`Inkoko y\'isare yaje! ${e} amagi! 🐓❤️\nIbice: ${all}🥚`,
+    rewardEgg:(e,all)=>`Inkoko yateye ${e} amagi! 🎉\nIbice: ${all}🥚`,
+    levelFlash:(n)=>`URWEGO ${n}`, reachedLevel:(n)=>`Ugeze: ${n}/12`,
+    chooseLang:'Hitamo Ururimi', chooseSub:'Hitamo ururimi ukunda' },
+
+  lg: { name:'Luganda 🇺🇬', gameTitle:'ENKOKO VS NFUUFU',
+    desc:'Ggwe omulimi ow\'enkoko omuyamba nnyo eyagala okukirizibwa kw\'enkoko ze. Evvumbi era falcon balumba enkoko zo okuzifuuka obulamu. Omukutu gwo kuzikiriza enkoko zo. Buli lw\'oyita ku buyinza okufuna kiriba ekibala. Bw\'otayita, okozesa amagi okuwaayo obulamu bw\'enkoko.',
+    start:'▶ Tandika Okukuuma', langBtn:'Kyusa Olulimi',
+    levelDone:'EDDAALA ERISAAKO!', nextLevel:'➡ EDDAALA EDDALA',
+    gameOver:'NFUUFU\nEKOBEZE!', overSub:'Nfuufu yafuna enkoko yo! 😭',
+    retry:'🔄 GEZAAKO NATE', winTitle:'OWANGUDDE!', winSub:'Eddaala 12 lyonna lisaako!',
+    playAgain:'🔄 SEENYA NATE', score:'Amanukuta', level:'Eddaala', health:'Obulamu',
+    feathers:'Enjiri', eggs:'Amagi', dodged:'Okulumba kwendigidde',
+    useEgg:'🥚 Kozesa Kiriba (+20%)', paused:'YIMIRIRA', resumeHint:'Nyiga ⏸ okukomezawo',
+    rewardJogoo:(e,all)=>`Ssekoko yajja! ${e} amagi! 🐓❤️\nMukaaga: ${all}🥚`,
+    rewardEgg:(e,all)=>`Enkoko yateeka ${e} amagi! 🎉\nMukaaga: ${all}🥚`,
+    levelFlash:(n)=>`EDDAALA ${n}`, reachedLevel:(n)=>`Ofika: ${n}/12`,
+    chooseLang:'Londa Olulimi', chooseSub:'Londa olulimi lw\'oyagala' },
+
+  it: { name:'Italiano 🇮🇹', gameTitle:'GALLINA VS FALCO',
+    desc:'Sei un allevatore esperto che ama la sicurezza delle sue galline. Falchi e gheppi attaccano il tuo pollaio. Il tuo compito è proteggere le galline. Ogni vittoria ti regala un uovo. Se fallisci, usa le uova per ripristinare la salute.',
+    start:'▶ Inizia la Difesa', langBtn:'Cambia Lingua',
+    levelDone:'LIVELLO COMPLETATO!', nextLevel:'➡ PROSSIMO LIVELLO',
+    gameOver:'IL FALCO\nHA VINTO!', overSub:'Il falco ha preso la tua gallina! 😭',
+    retry:'🔄 RIPROVA', winTitle:'HAI VINTO!', winSub:'Completati tutti e 12 i livelli!',
+    playAgain:'🔄 GIOCA ANCORA', score:'Punteggio', level:'Livello', health:'Salute',
+    feathers:'Piume', eggs:'Uova', dodged:'Attacchi schivati',
+    useEgg:'🥚 Usa un Uovo (+20%)', paused:'IN PAUSA', resumeHint:'Premi ⏸ per continuare',
+    rewardJogoo:(e,all)=>`Il gallo è arrivato! ${e} uova! 🐓❤️\nTotale: ${all}🥚`,
+    rewardEgg:(e,all)=>`Gallina ha fatto ${e} uov${e>1?'a':'o'}! 🎉\nTotale: ${all}🥚`,
+    levelFlash:(n)=>`LIVELLO ${n}`, reachedLevel:(n)=>`Raggiunto: ${n}/12`,
+    chooseLang:'Scegli la Lingua', chooseSub:'Seleziona la tua lingua preferita' },
+
+  pl: { name:'Polski 🇵🇱', gameTitle:'KURA VS JASTRZĄB',
+    desc:'Jesteś najlepszym hodowcą kur, który dba o bezpieczeństwo swojego stada. Na terenie fermy grasują jastrzębie i sokoły atakujące kury. Twoim zadaniem jest ochrona kur. Za każde zwycięstwo dostajesz jajko. Jeśli przegrasz, użyj jaj do przywrócenia zdrowia.',
+    start:'▶ Rozpocznij Obronę', langBtn:'Zmień Język',
+    levelDone:'POZIOM UKOŃCZONY!', nextLevel:'➡ NASTĘPNY POZIOM',
+    gameOver:'JASTRZĄB\nZWYCIĘŻYŁ!', overSub:'Jastrząb schwytał twoją kurę! 😭',
+    retry:'🔄 SPRÓBUJ PONOWNIE', winTitle:'WYGRAŁEŚ!', winSub:'Ukończono wszystkie 12 poziomów!',
+    playAgain:'🔄 ZAGRAJ PONOWNIE', score:'Wynik', level:'Poziom', health:'Zdrowie',
+    feathers:'Pióra', eggs:'Jajka', dodged:'Uniknięte ataki',
+    useEgg:'🥚 Użyj Jajka (+20%)', paused:'PAUZA', resumeHint:'Naciśnij ⏸ aby kontynuować',
+    rewardJogoo:(e,all)=>`Kogut przyszedł! ${e} jajka! 🐓❤️\nŁącznie: ${all}🥚`,
+    rewardEgg:(e,all)=>`Kura zniosła ${e} jajk${e>1?'a':'o'}! 🎉\nŁącznie: ${all}🥚`,
+    levelFlash:(n)=>`POZIOM ${n}`, reachedLevel:(n)=>`Osiągnięto: ${n}/12`,
+    chooseLang:'Wybierz Język', chooseSub:'Wybierz preferowany język' },
+
+  nl: { name:'Nederlands 🇳🇱', gameTitle:'KIP VS HAVIK',
+    desc:'Jij bent de beste kippenboer die de veiligheid van zijn kippen koestert. Op jouw boerderij aanvallen haviken en valken de kippen. Jouw taak is de kippen te beschermen. Elke overwinning levert een ei op. Als je verliest gebruik dan eieren om de gezondheid te herstellen.',
+    start:'▶ Begin Verdediging', langBtn:'Taal Wijzigen',
+    levelDone:'LEVEL VOLTOOID!', nextLevel:'➡ VOLGEND LEVEL',
+    gameOver:'DE HAVIK\nHEEFT GEWONNEN!', overSub:'De havik pakte jouw kip! 😭',
+    retry:'🔄 PROBEER OPNIEUW', winTitle:'GEWONNEN!', winSub:'Alle 12 levels voltooid!',
+    playAgain:'🔄 OPNIEUW SPELEN', score:'Score', level:'Level', health:'Gezondheid',
+    feathers:'Veren', eggs:'Eieren', dodged:'Ontweek aanvallen',
+    useEgg:'🥚 Gebruik Ei (+20%)', paused:'GEPAUZEERD', resumeHint:'Druk ⏸ om door te gaan',
+    rewardJogoo:(e,all)=>`De haan bezocht! ${e} eieren! 🐓❤️\nTotaal: ${all}🥚`,
+    rewardEgg:(e,all)=>`Kip legde ${e} ei(eren)! 🎉\nTotaal: ${all}🥚`,
+    levelFlash:(n)=>`LEVEL ${n}`, reachedLevel:(n)=>`Bereikt: ${n}/12`,
+    chooseLang:'Kies Taal', chooseSub:'Selecteer je voorkeurstaal' },
+
+  th: { name:'ภาษาไทย 🇹🇭', gameTitle:'ไก่ VS เหยี่ยว',
+    desc:'คุณคือเกษตรกรผู้เลี้ยงไก่ที่ดีที่สุด ซึ่งใส่ใจความปลอดภัยของไก่ เหยี่ยวและฟัลคอนโจมตีไก่ในฟาร์มของคุณ หน้าที่ของคุณคือปกป้องไก่ ทุกครั้งที่สำเร็จคุณจะได้รับไข่เป็นรางวัล หากล้มเหลว ให้ใช้ไข่ฟื้นฟูสุขภาพไก่',
+    start:'▶ เริ่มป้องกันเดี๋ยวนี้', langBtn:'เปลี่ยนภาษา',
+    levelDone:'ด่านสำเร็จ!', nextLevel:'➡ ด่านถัดไป',
+    gameOver:'เหยี่ยว\nชนะ!', overSub:'เหยี่ยวจับไก่ไป! 😭',
+    retry:'🔄 ลองอีกครั้ง', winTitle:'ชนะ!', winSub:'ผ่านครบ 12 ด่านแล้ว!',
+    playAgain:'🔄 เล่นอีกครั้ง', score:'คะแนน', level:'ด่าน', health:'พลังชีวิต',
+    feathers:'ขนนก', eggs:'ไข่', dodged:'การโจมตีที่หลบได้',
+    useEgg:'🥚 ใช้ไข่ (+20%)', paused:'หยุดชั่วคราว', resumeHint:'แตะ ⏸ เพื่อเล่นต่อ',
+    rewardJogoo:(e,all)=>`ไก่ตัวผู้มาเยือน! ${e} ฟอง! 🐓❤️\nรวม: ${all}🥚`,
+    rewardEgg:(e,all)=>`ไก่ออก ${e} ฟอง! 🎉\nรวม: ${all}🥚`,
+    levelFlash:(n)=>`ด่าน ${n}`, reachedLevel:(n)=>`ถึง: ${n}/12`,
+    chooseLang:'เลือกภาษา', chooseSub:'เลือกภาษาที่คุณต้องการ' },
+
+  vi: { name:'Tiếng Việt 🇻🇳', gameTitle:'GÀ VS DIỀU HÂU',
+    desc:'Bạn là người chăn nuôi gà giỏi nhất, luôn quan tâm đến sự an toàn của gà mình. Khu vực nuôi gà của bạn có diều hâu và chim ưng tấn công gà. Nhiệm vụ của bạn là bảo vệ gà. Mỗi lần thành công bạn nhận được trứng. Nếu thất bại hãy dùng trứng để hồi phục sức khỏe.',
+    start:'▶ Bắt Đầu Bảo Vệ', langBtn:'Đổi Ngôn Ngữ',
+    levelDone:'HOÀN THÀNH CẤP ĐỘ!', nextLevel:'➡ CẤP ĐỘ TIẾP',
+    gameOver:'DIỀU HÂU\nTHẮNG!', overSub:'Diều hâu bắt gà của bạn! 😭',
+    retry:'🔄 THỬ LẠI', winTitle:'CHIẾN THẮNG!', winSub:'Hoàn thành tất cả 12 cấp độ!',
+    playAgain:'🔄 CHƠI LẠI', score:'Điểm', level:'Cấp độ', health:'Sức khỏe',
+    feathers:'Lông', eggs:'Trứng', dodged:'Đòn tấn công tránh được',
+    useEgg:'🥚 Dùng Trứng (+20%)', paused:'TẠM DỪNG', resumeHint:'Nhấn ⏸ để tiếp tục',
+    rewardJogoo:(e,all)=>`Gà trống đến! ${e} quả trứng! 🐓❤️\nTổng: ${all}🥚`,
+    rewardEgg:(e,all)=>`Gà đẻ ${e} quả! 🎉\nTổng: ${all}🥚`,
+    levelFlash:(n)=>`CẤP ĐỘ ${n}`, reachedLevel:(n)=>`Đạt được: ${n}/12`,
+    chooseLang:'Chọn Ngôn Ngữ', chooseSub:'Chọn ngôn ngữ ưa thích của bạn' },
+
+  uk: { name:'Українська 🇺🇦', gameTitle:'КУРКА VS ЯСТРУБ',
+    desc:'Ви найкращий птахівник, якому не байдужа безпека курей. На вашій фермі яструби та соколи нападають на курей. Ваше завдання — захистити кур. Кожна перемога приносить яйце в нагороду. Якщо програєте, використовуйте яйця для відновлення здоров\'я.',
+    start:'▶ Почати Захист', langBtn:'Змінити Мову',
+    levelDone:'РІВЕНЬ ЗАВЕРШЕНО!', nextLevel:'➡ НАСТУПНИЙ РІВЕНЬ',
+    gameOver:'ЯСТРУБ\nПЕРЕМІГ!', overSub:'Яструб схопив вашу курку! 😭',
+    retry:'🔄 СПРОБУВАТИ ЗНОВУ', winTitle:'ПЕРЕМОГА!', winSub:'Усі 12 рівнів пройдено!',
+    playAgain:'🔄 ГРАТИ ЗНОВУ', score:'Рахунок', level:'Рівень', health:'Здоров\'я',
+    feathers:'Пір\'я', eggs:'Яйця', dodged:'Уникнутих атак',
+    useEgg:'🥚 Використати Яйце (+20%)', paused:'ПАУЗА', resumeHint:'Натисніть ⏸ продовжити',
+    rewardJogoo:(e,all)=>`Півніль прийшов! ${e} яєць! 🐓❤️\nВсього: ${all}🥚`,
+    rewardEgg:(e,all)=>`Курка знесла ${e} яєць! 🎉\nВсього: ${all}🥚`,
+    levelFlash:(n)=>`РІВЕНЬ ${n}`, reachedLevel:(n)=>`Досягнуто: ${n}/12`,
+    chooseLang:'Вибір Мови', chooseSub:'Виберіть бажану мову' },
+
+  bn: { name:'বাংলা 🇧🇩', gameTitle:'মুরগি VS বাজপাখি',
+    desc:'আপনি একজন দক্ষ মুরগি পালনকারী যিনি মুরগির নিরাপত্তা ভালোবাসেন। আপনার খামারে বাজপাখি ও ফ্যালকন মুরগি আক্রমণ করে। আপনার কাজ মুরগিকে রক্ষা করা। প্রতিবার সফল হলে ডিম পুরস্কার পাবেন। ব্যর্থ হলে ডিম দিয়ে মুরগির স্বাস্থ্য ফেরান।',
+    start:'▶ এখনই রক্ষা শুরু করুন', langBtn:'ভাষা পরিবর্তন',
+    levelDone:'স্তর সম্পন্ন!', nextLevel:'➡ পরবর্তী স্তর',
+    gameOver:'বাজপাখি\nজিতেছে!', overSub:'বাজপাখি আপনার মুরগি ধরে নিয়েছে! 😭',
+    retry:'🔄 আবার চেষ্টা', winTitle:'জিতেছেন!', winSub:'সব ১২টি স্তর সম্পন্ন!',
+    playAgain:'🔄 আবার খেলুন', score:'স্কোর', level:'স্তর', health:'স্বাস্থ্য',
+    feathers:'পালক', eggs:'ডিম', dodged:'এড়ানো আক্রমণ',
+    useEgg:'🥚 ডিম ব্যবহার করুন (+20%)', paused:'বিরতি', resumeHint:'⏸ চাপুন চালিয়ে যেতে',
+    rewardJogoo:(e,all)=>`মোরগ এলো! ${e}টি ডিম! 🐓❤️\nমোট: ${all}🥚`,
+    rewardEgg:(e,all)=>`মুরগি ${e}টি ডিম দিল! 🎉\nমোট: ${all}🥚`,
+    levelFlash:(n)=>`স্তর ${n}`, reachedLevel:(n)=>`পৌঁছেছেন: ${n}/12`,
+    chooseLang:'ভাষা বেছে নিন', chooseSub:'আপনার পছন্দের ভাষা বেছে নিন' },
+
+  fa: { name:'فارسی 🇮🇷', gameTitle:'مرغ در برابر عقاب',
+    desc:'شما بهترین مرغدار هستید که به ایمنی مرغ‌هایتان اهمیت می‌دهید. در مزرعه شما عقاب و شاهین به مرغ‌ها حمله می‌کنند. وظیفه شما محافظت از مرغ‌هاست. هر بار که موفق شوید یک تخم‌مرغ جایزه می‌گیرید. در صورت شکست از تخم‌مرغ‌ها برای بازیابی سلامت استفاده کنید.',
+    start:'▶ اکنون دفاع را شروع کن', langBtn:'تغییر زبان',
+    levelDone:'!مرحله تمام شد', nextLevel:'مرحله بعدی ➡',
+    gameOver:'!عقاب\nبرد', overSub:'!عقاب مرغ شما را گرفت 😭',
+    retry:'🔄 دوباره امتحان کن', winTitle:'!بردی', winSub:'!همه ۱۲ مرحله تمام شد',
+    playAgain:'🔄 دوباره بازی کن', score:'امتیاز', level:'مرحله', health:'سلامت',
+    feathers:'پر', eggs:'تخم‌مرغ', dodged:'حملات دفع شده',
+    useEgg:'🥚 استفاده از تخم‌مرغ (+20%)', paused:'متوقف شد', resumeHint:'⏸ را فشار دهید برای ادامه',
+    rewardJogoo:(e,all)=>`خروس آمد! ${e} تخم‌مرغ! 🐓❤️\nجمع: ${all}🥚`,
+    rewardEgg:(e,all)=>`مرغ ${e} تخم گذاشت! 🎉\nجمع: ${all}🥚`,
+    levelFlash:(n)=>`مرحله ${n}`, reachedLevel:(n)=>`رسیده: ${n}/12`,
+    chooseLang:'انتخاب زبان', chooseSub:'زبان مورد علاقه خود را انتخاب کنید' },
+
+  ur: { name:'اردو 🇵🇰', gameTitle:'مرغی بمقابلہ باز',
+    desc:'آپ ایک بہترین مرغی پالنے والے ہیں جو اپنی مرغیوں کی حفاظت سے محبت رکھتے ہیں۔ آپ کے فارم میں باز اور شاہین مرغیوں پر حملہ کرتے ہیں۔ آپ کی ذمہ داری ہے کہ مرغیوں کو بچائیں۔ کامیابی پر آپ کو انڈے کا انعام ملتا ہے۔ ناکامی پر انڈوں سے مرغی کی صحت بحال کریں۔',
+    start:'▶ ابھی حفاظت شروع کریں', langBtn:'زبان تبدیل کریں',
+    levelDone:'!مرحلہ مکمل', nextLevel:'اگلا مرحلہ ➡',
+    gameOver:'!باز\nجیت گیا', overSub:'!باز آپ کی مرغی لے گیا 😭',
+    retry:'🔄 دوبارہ کوشش', winTitle:'!جیت گئے', winSub:'!تمام 12 مراحل مکمل',
+    playAgain:'🔄 دوبارہ کھیلیں', score:'اسکور', level:'مرحلہ', health:'صحت',
+    feathers:'پر', eggs:'انڈے', dodged:'روکے گئے حملے',
+    useEgg:'🥚 انڈہ استعمال کریں (+20%)', paused:'رکا ہوا', resumeHint:'جاری رکھنے کے لیے ⏸ دبائیں',
+    rewardJogoo:(e,all)=>`مرغا آیا! ${e} انڈے! 🐓❤️\nکل: ${all}🥚`,
+    rewardEgg:(e,all)=>`مرغی نے ${e} انڈے دیے! 🎉\nکل: ${all}🥚`,
+    levelFlash:(n)=>`مرحلہ ${n}`, reachedLevel:(n)=>`پہنچ گئے: ${n}/12`,
+    chooseLang:'زبان چنیں', chooseSub:'اپنی پسندیدہ زبان چنیں' },
+
+  zu: { name:'isiZulu 🇿🇦', gameTitle:'INKUKHU VS UKHOZI',
+    desc:'Ungumfuyi wezinkukhu ohlakaniphile othanda ukuphepha kwezinkukhu zakhe. Endaweni yakho kunezinkozi nezinyoni ezihlasela izinkukhu. Umsebenzi wakho ukuvikela izinkukhu zakho. Ngesinye isikhathi esiphumelelayo uthola iwele njengomklomelo. Uma uhlulwa amaqanda asetshenziselwa ukubuyisela impilo.',
+    start:'▶ Qala Ukuvikela Manje', langBtn:'Shintsha Ulimi',
+    levelDone:'IZINGA LIQEDWE!', nextLevel:'➡ IZINGA ELILANDELAYO',
+    gameOver:'UKHOZI\nLUPHUMELELE!', overSub:'Ukhozi lwathatha inkukhu yakho! 😭',
+    retry:'🔄 ZAMA FUTHI', winTitle:'UPHUMELELE!', winSub:'Wonke amaZinga angu-12 aqediwe!',
+    playAgain:'🔄 DLALA FUTHI', score:'Amanqolobane', level:'Izinga', health:'Impilo',
+    feathers:'Izimpaphe', eggs:'Amaqanda', dodged:'Imihlaselo eyagwenywa',
+    useEgg:'🥚 Sebenzisa Iqanda (+20%)', paused:'KUMISIWE', resumeHint:'Chofoza ⏸ ukuqhubeka',
+    rewardJogoo:(e,all)=>`Iqhude lifike! ${e} amaqanda! 🐓❤️\nIsamba: ${all}🥚`,
+    rewardEgg:(e,all)=>`Inkukhu ibeke ${e} amaqanda! 🎉\nIsamba: ${all}🥚`,
+    levelFlash:(n)=>`IZINGA ${n}`, reachedLevel:(n)=>`Kufinyelelwe: ${n}/12`,
+    chooseLang:'Khetha Ulimi', chooseSub:'Khetha ulimi oluthandayo' },
+
+  xh: { name:'isiXhosa 🇿🇦', gameTitle:'INKUKHU VS UKHOZI',
+    desc:'Ungumfuyi wenkukhu oqhelekileyo othanda ukhuseleko lwezinkukhu zakhe. Kwindawo yakho zikhona iinkozi ezihlasela iinkukhu. Umsebenzi wakho kukuzigcina iinkukhu zakho. Xa uphumelela ufumana iqanda njengemvuzo. Ukuba usilela sebenzisa amaqanda ukubuyisela impilo.',
+    start:'▶ Qala Ukukhusela Ngoku', langBtn:'Tshintsha Ulwimi',
+    levelDone:'INQANABA LIGQITYIWE!', nextLevel:'➡ INQANABA ELILANDELAYO',
+    gameOver:'UKHOZI\nLUPHUMELELE!', overSub:'Ukhozi lwathatha inkukhu yakho! 😭',
+    retry:'🔄 ZAMA KWAKHONA', winTitle:'UPHUMELELE!', winSub:'Onke amanqanaba ali-12 agqityiwe!',
+    playAgain:'🔄 DLALA KWAKHONA', score:'Amanqaku', level:'Inqanaba', health:'Impilo',
+    feathers:'Iimpaphe', eggs:'Amaqanda', dodged:'Imihlaselo eyapheqekwa',
+    useEgg:'🥚 Sebenzisa Iqanda (+20%)', paused:'KUMISIWE', resumeHint:'Cofa ⏸ ukuqhubeka',
+    rewardJogoo:(e,all)=>`Iqhude lifike! ${e} amaqanda! 🐓❤️\nIsiphumo: ${all}🥚`,
+    rewardEgg:(e,all)=>`Inkukhu ibeke ${e} amaqanda! 🎉\nIsiphumo: ${all}🥚`,
+    levelFlash:(n)=>`INQANABA ${n}`, reachedLevel:(n)=>`Kufikiwe: ${n}/12`,
+    chooseLang:'Khetha Ulwimi', chooseSub:'Khetha ulwimi oluthandayo' },
+};
+
+let currentLang = 'sw';
+function T(){ return LANGS[currentLang] || LANGS['sw']; }
+
+function toggleDesc(){
+  const d=document.getElementById('ui-desc');
+  const a=document.getElementById('desc-arrow');
+  const open = d.style.display==='none';
+  d.style.display = open?'block':'none';
+  a.style.transform = open?'rotate(180deg)':'rotate(0deg)';
+}
+
+function applyLang(){
+  const t = T();
+  const el = id => document.getElementById(id);
+
+  // Start screen
+  el('ui-gametitle').innerHTML = t.gameTitle.replace(' VS ','<br>VS<br>');
+  el('ui-desc').textContent    = t.desc;
+  el('sbtn').textContent       = t.start;
+  el('ui-lang-btn-lbl').textContent = t.langBtn;
+  el('desc-btn-lbl').textContent    = '📖 '+(t.descBtn||'Maelezo ya Mchezo');
+  el('pick-chicken-lbl').textContent = t.pickChicken||'Chagua Kuku';
+  el('pick-hawk-lbl').textContent    = t.pickHawk||'Chagua Mwewe';
+
+  // Chicken selector screen
+  el('chicken-scr-title').textContent = '🐔 '+(t.chickenScrTitle||'Chagua Kuku Wako');
+  el('chicken-scr-sub').textContent   = t.chickenScrSub||'Kila aina ina ujuzi tofauti wa kukwepa';
+  el('tab-hen-lbl').textContent       = t.tabHen||'🐔 Kuku (Hen)';
+  el('tab-rooster-lbl').textContent   = t.tabRooster||'🐓 Jogoo';
+  el('chicken-color-lbl').textContent = t.chickenColorLbl||'🎨 Rangi ya Kuku';
+  el('chicken-ok-lbl').textContent    = t.okBtn||'Sawa';
+
+  // Hawk selector screen
+  el('hawk-scr-title').textContent = '🦅 '+(t.hawkScrTitle||'Chagua Adui Wako');
+  el('hawk-scr-sub').textContent   = t.hawkScrSub||'Kila aina ina nguvu tofauti za kushambulia';
+  el('tab-hawk-lbl').textContent   = t.tabHawk||'🦅 Mwewe (Hawk)';
+  el('tab-falcon-lbl').textContent = t.tabFalcon||'🐦 Falcon';
+  el('hawk-color-lbl').textContent = t.hawkColorLbl||'🎨 Rangi ya Mwewe';
+  el('hawk-ok-lbl').textContent    = t.okBtn||'Sawa';
+
+  // HUD & gameplay
+  el('atk-lbl').textContent = t.dodged||'Mashambulio yaliyokoswa';
+
+  // Result screens
+  el('nbtn').textContent    = t.nextLevel;
+  el('rbtn').textContent    = t.retry;
+  el('wbtn').textContent    = t.playAgain;
+  el('egg-btn').textContent = t.useEgg;
+  const hLbl = t.homeBtn||'Nyumbani';
+  const pLbl = t.prevLevel||'Level Iliyopita';
+  el('home-lbl').textContent         = hLbl;
+  el('reward-home-lbl').textContent  = hLbl;
+  el('prev-lvl-lbl').textContent     = pLbl;
+  el('over-prev-lbl').textContent    = pLbl;
+  const goTitle = t.gameOver||'MWEWE\nAMEMCHUKUA!';
+  el('over-title').innerHTML = goTitle.replace('\n','<br>');
+  el('over-sub').innerHTML   = (t.overSub||'Kuku amenyakuliwa! 😭<br>Jaribu tena.').replace('\n','<br>');
+
+  // Also rebuild grids so card skill/desc texts update
+  buildChickenGrid(SEL.chickenTab);
+  buildHawkGrid(SEL.hawkTab);
+
+  // Keep desc closed
+  el('ui-desc').style.display='none';
+  el('desc-arrow').style.transform='rotate(0deg)';
+}
+
+function buildLangGrid(){
+  const grid = document.getElementById('lang-grid');
+  grid.innerHTML = '';
+  Object.keys(LANGS).forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'lang-btn' + (k===currentLang?' selected':'');
+    b.textContent = LANGS[k].name;
+    b.onclick = ()=>{
+      currentLang = k;
+      grid.querySelectorAll('.lang-btn').forEach(x=>x.classList.remove('selected'));
+      b.classList.add('selected');
+    };
+    grid.appendChild(b);
+  });
+}
+
+function showLangScreen(fromGame){
+  buildLangGrid();
+  hideAll();
+  document.getElementById('lang-scr').classList.remove('hidden');
+  document.getElementById('lang-scr').dataset.fromGame = fromGame?'1':'0';
+}
+
+document.getElementById('lang-ok-btn').onclick = ()=>{
+  applyLang();
+  const fromGame = document.getElementById('lang-scr').dataset.fromGame === '1';
+  hideAll();
+  if(fromGame){
+    document.getElementById('start-scr').classList.remove('hidden');
+  } else {
+    document.getElementById('start-scr').classList.remove('hidden');
+  }
+};
+
+document.getElementById('lang-change-btn').onclick = ()=> showLangScreen(true);
+
+"use strict";
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── CHICKEN & HAWK SPECIES DATA ──────────────────────────
+
+const CHICKEN_TYPES = {
+  hen: [
+    { id:'leghorn',   name:'Leghorn',    emoji:'🐔', skill:'Mbio Haraka',     desc:'Kasi ya kukimbia +30%', spd:1.3,  dashCD:0.7, invT:1.0, jumpH:1.0 },
+    { id:'rhode',     name:'Rhode Island',emoji:'🐔', skill:'Nguvu Kubwa',    desc:'Afya ya ziada +25%',    spd:1.0,  dashCD:1.0, invT:1.4, jumpH:0.9 },
+    { id:'sussex',    name:'Sussex',      emoji:'🐔', skill:'Akili ya Kukwepa',desc:'Dash mara mbili haraka',spd:1.1,  dashCD:0.5, invT:1.1, jumpH:1.0 },
+    { id:'plymouth',  name:'Plymouth Rock',emoji:'🐔',skill:'Ngome Imara',    desc:'Kupigwa hasara kidogo', spd:1.0,  dashCD:1.0, invT:1.6, jumpH:0.8 },
+    { id:'wyandotte', name:'Wyandotte',   emoji:'🐔', skill:'Ruka Juu Sana',  desc:'Kuruka mbali zaidi',   spd:1.05, dashCD:0.9, invT:1.0, jumpH:1.6 },
+    { id:'orpington', name:'Orpington',   emoji:'🐔', skill:'Pumzika Haraka', desc:'Invincible mrefu',      spd:0.9,  dashCD:0.8, invT:1.8, jumpH:0.9 },
+  ],
+  rooster: [
+    { id:'barred',    name:'Barred Jogoo',emoji:'🐓', skill:'Mkali Sana',     desc:'Kasi +40%, Dash nguvu', spd:1.4,  dashCD:0.6, invT:1.1, jumpH:1.1 },
+    { id:'gamecock',  name:'Gamecock',    emoji:'🐓', skill:'Mpiganaji',       desc:'Hasara ndogo mara zote',spd:1.2,  dashCD:0.5, invT:1.5, jumpH:1.2 },
+    { id:'brahma',    name:'Brahma Jogoo',emoji:'🐓', skill:'Mzito Imara',    desc:'Afya kubwa, polepole', spd:0.85, dashCD:1.1, invT:1.9, jumpH:0.7 },
+    { id:'phoenix',   name:'Phoenix',     emoji:'🐓', skill:'Mwepesi Sana',   desc:'Kasi ya hewa +50%',    spd:1.5,  dashCD:0.55,invT:0.9, jumpH:1.4 },
+    { id:'sebright',  name:'Sebright',    emoji:'🐓', skill:'Mdogo Mwepesi',  desc:'Dash haraka mara 3',   spd:1.35, dashCD:0.4, invT:1.0, jumpH:1.3 },
+    { id:'sumatra',   name:'Sumatra',     emoji:'🐓', skill:'Mshambuliaji',   desc:'Kuruka juu + mbio',    spd:1.3,  dashCD:0.6, invT:1.1, jumpH:1.5 },
+  ]
+};
+
+const HAWK_TYPES = {
+  hawk: [
+    { id:'redtail',   name:"Red-tail Hawk", emoji:'🦅', skill:'Mashambulio ya Kawaida', desc:'Wastani wa kila kitu',       atkSpd:1.0, atkFreq:1.0, atkRange:1.0, atkPat:'circle' },
+    { id:'cooper',    name:"Cooper's Hawk",  emoji:'🦅', skill:'Mbinu za Kuizunguka',  desc:'Huzunguka haraka sana',      atkSpd:1.2, atkFreq:1.1, atkRange:0.9, atkPat:'zigzag' },
+    { id:'harris',    name:"Harris's Hawk",  emoji:'🦅', skill:'Kushambulia Pamoja',   desc:'Mashambulio ya kikosi',      atkSpd:1.1, atkFreq:1.3, atkRange:1.1, atkPat:'swarm'  },
+    { id:'swainson',  name:"Swainson's Hawk",emoji:'🦅', skill:'Shambulio la Juu',     desc:'Hushuka kwa nguvu kubwa',   atkSpd:1.4, atkFreq:0.8, atkRange:1.2, atkPat:'dive'   },
+    { id:'ferruginous',name:"Ferruginous",   emoji:'🦅', skill:'Mzito Mkali',          desc:'Polepole lakini nguvu sana', atkSpd:0.9, atkFreq:0.9, atkRange:1.3, atkPat:'circle' },
+    { id:'rough',     name:"Rough-legged",   emoji:'🦅', skill:'Mshambuliaji wa Baridi',desc:'Mashambulio ya haraka mbili',atkSpd:1.3, atkFreq:1.2, atkRange:1.0, atkPat:'mixed'  },
+  ],
+  falcon: [
+    { id:'peregrine', name:'Peregrine',   emoji:'🐦', skill:'Kasi ya Radi',       desc:'Kasi ya shambulio +80%',    atkSpd:1.8, atkFreq:0.7, atkRange:1.0, atkPat:'dive'   },
+    { id:'gyrfalcon', name:'Gyrfalcon',   emoji:'🐦', skill:'Mkali wa Kaskazini', desc:'Nguvu na kasi wastani',     atkSpd:1.5, atkFreq:1.0, atkRange:1.2, atkPat:'mixed'  },
+    { id:'lanner',    name:'Lanner',      emoji:'🐦', skill:'Mzunguko wa Hatari', desc:'Huzunguka na kushambulia',  atkSpd:1.3, atkFreq:1.2, atkRange:0.9, atkPat:'zigzag' },
+    { id:'merlin',    name:'Merlin',      emoji:'🐦', skill:'Mdogo Mwepesi Sana', desc:'Mashambulio mengi haraka',  atkSpd:1.4, atkFreq:1.5, atkRange:0.8, atkPat:'swarm'  },
+    { id:'aplomado',  name:'Aplomado',    emoji:'🐦', skill:'Shambulio la Haraka',desc:'Anakuja kwa njia ya ulalo', atkSpd:1.6, atkFreq:0.9, atkRange:1.1, atkPat:'dive'   },
+    { id:'eleonora',  name:"Eleonora's",  emoji:'🐦', skill:'Mwindaji wa Usiku',  desc:'Anashambulia bila tahadhari',atkSpd:1.4,atkFreq:1.3, atkRange:1.0, atkPat:'mixed'  },
+  ]
+};
+
+const CHICKEN_COLORS = [
+  {name:'Asili',   body:'#f5deb3', wing:'#e8c840', comb:'#d32f2f'},
+  {name:'Nyeupe',  body:'#ffffff', wing:'#e8e8e8', comb:'#e74c3c'},
+  {name:'Nyeusi',  body:'#2c2c2c', wing:'#3a3a3a', comb:'#c0392b'},
+  {name:'Kahawia', body:'#8b4513', wing:'#a0522d', comb:'#e74c3c'},
+  {name:'Dhahabu', body:'#ffd700', wing:'#ffa500', comb:'#c0392b'},
+  {name:'Kijivu',  body:'#9e9e9e', wing:'#bdbdbd', comb:'#e74c3c'},
+  {name:'Rangi ya Shaba', body:'#b87333', wing:'#cd853f', comb:'#d32f2f'},
+  {name:'Samawati',body:'#b2dfdb', wing:'#80cbc4', comb:'#e57373'},
+];
+
+const HAWK_COLORS = [
+  {name:'Asili',   body:'#795548', wing:'#5d4037', head:'#5d4037'},
+  {name:'Nyekundu',body:'#8b0000', wing:'#7f0000', head:'#5d0000'},
+  {name:'Giza',    body:'#212121', wing:'#1a1a1a', head:'#111'},
+  {name:'Kijivu',  body:'#607d8b', wing:'#546e7a', head:'#455a64'},
+  {name:'Dhahabu', body:'#a0522d', wing:'#8b3a1a', head:'#6b2a0f'},
+  {name:'Samawati',body:'#1565c0', wing:'#0d47a1', head:'#0a3070'},
+  {name:'Kijani',  body:'#2e7d32', wing:'#1b5e20', head:'#155724'},
+  {name:'Rangi ya Jua', body:'#f57f17', wing:'#e65100', head:'#bf360c'},
+];
+
+// Selected options
+let SEL = {
+  chickenTab:'hen',   chickenId:'leghorn', chickenColorIdx:0,
+  hawkTab:'hawk',     hawkId:'redtail',    hawkColorIdx:0,
+};
+function getChickenSpec(){ return CHICKEN_TYPES[SEL.chickenTab].find(c=>c.id===SEL.chickenId) || CHICKEN_TYPES.hen[0]; }
+function getHawkSpec(){    return HAWK_TYPES[SEL.hawkTab].find(h=>h.id===SEL.hawkId)         || HAWK_TYPES.hawk[0]; }
+function getChickenColor(){ return CHICKEN_COLORS[SEL.chickenColorIdx]; }
+function getHawkColor(){    return HAWK_COLORS[SEL.hawkColorIdx]; }
+
+// Build selector grids
+function buildChickenGrid(){
+  const grid=document.getElementById('chicken-grid'); grid.innerHTML='';
+  CHICKEN_TYPES[SEL.chickenTab].forEach(c=>{
+    const d=document.createElement('div');
+    d.className='sel-card'+(c.id===SEL.chickenId?' chosen':'');
+    d.innerHTML=`<span class="card-emoji">${c.emoji}</span><div class="card-name">${c.name}</div><div class="card-skill">⚡ ${c.skill}</div><div class="card-skill">${c.desc}</div>`;
+    d.onclick=()=>{ SEL.chickenId=c.id; buildChickenGrid(); drawChickenPreview(); };
+    grid.appendChild(d);
+  });
+  buildChickenColors();
+  drawChickenPreview();
+}
+function buildHawkGrid(){
+  const grid=document.getElementById('hawk-grid'); grid.innerHTML='';
+  HAWK_TYPES[SEL.hawkTab].forEach(h=>{
+    const d=document.createElement('div');
+    d.className='sel-card'+(h.id===SEL.hawkId?' chosen':'');
+    d.innerHTML=`<span class="card-emoji">${h.emoji}</span><div class="card-name">${h.name}</div><div class="card-skill">⚡ ${h.skill}</div><div class="card-skill">${h.desc}</div>`;
+    d.onclick=()=>{ SEL.hawkId=h.id; buildHawkGrid(); drawHawkPreview(); };
+    grid.appendChild(d);
+  });
+  buildHawkColors();
+  drawHawkPreview();
+}
+
+function buildChickenColors(){
+  const wrap=document.getElementById('chicken-colors'); wrap.innerHTML='';
+  CHICKEN_COLORS.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='color-dot'+(i===SEL.chickenColorIdx?' chosen':'');
+    d.style.background=c.body; d.title=c.name;
+    d.onclick=()=>{ SEL.chickenColorIdx=i; buildChickenColors(); drawChickenPreview(); };
+    wrap.appendChild(d);
+  });
+}
+function buildHawkColors(){
+  const wrap=document.getElementById('hawk-colors'); wrap.innerHTML='';
+  HAWK_COLORS.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='color-dot'+(i===SEL.hawkColorIdx?' chosen':'');
+    d.style.background=c.body; d.title=c.name;
+    d.onclick=()=>{ SEL.hawkColorIdx=i; buildHawkColors(); drawHawkPreview(); };
+    wrap.appendChild(d);
+  });
+}
+
+function switchChickenTab(tab){
+  SEL.chickenTab=tab;
+  SEL.chickenId=CHICKEN_TYPES[tab][0].id;
+  ['hen','rooster'].forEach(t=>{
+    const el=document.getElementById('tab-'+t);
+    if(t===tab){ el.style.background='rgba(245,166,35,0.4)'; el.style.borderColor='#f5a623'; }
+    else{ el.style.background='rgba(255,255,255,0.08)'; el.style.borderColor='rgba(255,255,255,0.2)'; }
+  });
+  buildChickenGrid();
+}
+function switchHawkTab(tab){
+  SEL.hawkTab=tab;
+  SEL.hawkId=HAWK_TYPES[tab][0].id;
+  ['hawk','falcon'].forEach(t=>{
+    const el=document.getElementById('tab-'+t);
+    if(t===tab){ el.style.background='rgba(231,76,60,0.4)'; el.style.borderColor='#e74c3c'; }
+    else{ el.style.background='rgba(255,255,255,0.08)'; el.style.borderColor='rgba(255,255,255,0.2)'; }
+  });
+  buildHawkGrid();
+}
+
+// Mini preview draw
+function drawChickenPreview(){
+  const pv=document.getElementById('chicken-preview');
+  if(!pv) return;
+  const pc=pv.getContext('2d'); pc.clearRect(0,0,80,80);
+  const col=getChickenColor();
+  drawChickenAt(pc,40,42,18,col);
+}
+function drawHawkPreview(){
+  const pv=document.getElementById('hawk-preview');
+  if(!pv) return;
+  const pc=pv.getContext('2d'); pc.clearRect(0,0,80,80);
+  const col=getHawkColor();
+  drawHawkAt(pc,40,40,18,col,false);
+}
+
+// Open/close selector screens
+document.getElementById('pick-chicken-btn').onclick=()=>{ hideAll(); buildChickenGrid(); document.getElementById('chicken-scr').classList.remove('hidden'); };
+document.getElementById('pick-hawk-btn').onclick=()=>{ hideAll(); buildHawkGrid(); document.getElementById('hawk-scr').classList.remove('hidden'); };
+document.getElementById('chicken-ok-btn').onclick=()=>{ hideAll(); document.getElementById('start-scr').classList.remove('hidden'); };
+document.getElementById('hawk-ok-btn').onclick=()=>{ hideAll(); document.getElementById('start-scr').classList.remove('hidden'); };
+
+// ── LEVELS — speed rises each level ──────────────────────
+const BASE_LEVELS = [
+  {hawks:1,  basePat:'circle', eggs:1,  jogoo:false},  // L1
+  {hawks:1,  basePat:'dive',   eggs:2,  jogoo:true},   // L2
+  {hawks:2,  basePat:'circle', eggs:2,  jogoo:false},  // L3
+  {hawks:2,  basePat:'zigzag', eggs:3,  jogoo:true},   // L4
+  {hawks:2,  basePat:'dive',   eggs:3,  jogoo:false},  // L5
+  {hawks:3,  basePat:'swarm',  eggs:4,  jogoo:true},   // L6
+  {hawks:3,  basePat:'zigzag', eggs:4,  jogoo:false},  // L7
+  {hawks:3,  basePat:'swarm',  eggs:5,  jogoo:true},   // L8
+  {hawks:4,  basePat:'dive',   eggs:5,  jogoo:false},  // L9
+  {hawks:4,  basePat:'swarm',  eggs:6,  jogoo:true},   // L10
+  {hawks:5,  basePat:'mixed',  eggs:6,  jogoo:false},  // L11
+  {hawks:6,  basePat:'mixed',  eggs:8,  jogoo:true},   // L12
+  {hawks:7,  basePat:'mixed',  eggs:10, jogoo:true,   hard:true},        // L13
+  {hawks:9,  basePat:'mixed',  eggs:12, jogoo:false,  veryHard:true},    // L14
+  {hawks:12, basePat:'mixed',  eggs:20, jogoo:true,   impossible:true},  // L15
+];
+
+function buildLevels(){
+  const hs = getHawkSpec();
+  return BASE_LEVELS.map((b,i)=>{
+    let spd, atkFreq, atkRange, maxMisses, waitMult;
+
+    if(b.impossible){
+      // L15 — 2% win chance
+      // 12 hawks, blinding speed, giant hit radius, attack every ~0.8s per hawk
+      // kuku needs 5 perfect dodges but hawks attack from ALL directions simultaneously
+      spd       = 11.0 * hs.atkSpd;   // nearly teleport speed
+      atkFreq   = hs.atkFreq * 5.0;   // attacks every ~0.8s per hawk
+      atkRange  = hs.atkRange * 2.8;  // enormous hit box
+      maxMisses = 5;
+      waitMult  = 0.15;               // first attack within 12 frames
+    } else if(b.veryHard){
+      // L14 — very hard, ~10% win chance
+      spd       = 7.5 * hs.atkSpd;
+      atkFreq   = hs.atkFreq * 3.2;
+      atkRange  = hs.atkRange * 2.2;
+      maxMisses = 5;
+      waitMult  = 0.28;
+    } else if(b.hard){
+      // L13 — hard
+      spd       = 5.2 * hs.atkSpd;
+      atkFreq   = hs.atkFreq * 2.1;
+      atkRange  = hs.atkRange * 1.6;
+      maxMisses = 5;
+      waitMult  = 0.55;
+    } else {
+      // L1–L12 — smooth progression
+      spd       = (1.8 + i*0.28) * hs.atkSpd;
+      atkFreq   = hs.atkFreq;
+      atkRange  = hs.atkRange;
+      maxMisses = 5;
+      waitMult  = 1.0;
+    }
+
+    return {
+      ...b,
+      spd, atkFreq, atkRange, maxMisses, waitMult: waitMult||1,
+      pat: hs.atkPat==='mixed' ? b.basePat : hs.atkPat,
+    };
+  });
+}
+let LEVELS = buildLevels();
+
+// ── GLOBAL STATE ─────────────────────────────────────────
+let G = {
+  level:1, score:0, eggs:0, totEggs:0, hp:100, feathers:0,
+  running:false, paused:false, t:0,
+  missedAttacks:0,   // how many times mwewe missed (dodged by kuku)
+  maxMisses:5,       // need 5 misses to win level
+};
+
+// ── CHICKEN ──────────────────────────────────────────────
+let K = { x:0, y:0, vx:0, vy:0, jumping:false, jumpV:0,
+          dashing:false, dashT:0, dashCD:0, invT:0,
+          wobble:0, frameT:0, powerLv:1, sz:44 };
+function resetK(){
+  K.x = cv.width/2; K.y = cv.height*0.65;
+  K.vx=0; K.vy=0; K.jumping=false; K.jumpV=0;
+  K.dashing=false; K.dashT=0; K.dashCD=0; K.invT=0;
+  K.wobble=0; K.frameT=0;
+}
+
+// ── SOUND ENGINE (Web Audio API) ─────────────────────────
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+
+function resumeAC(){
+  if(AC.state==='suspended') AC.resume();
+}
+document.addEventListener('touchstart', resumeAC, {once:true});
+document.addEventListener('mousedown',  resumeAC, {once:true});
+
+// Generic oscillator burst
+function playTone(freq, type, duration, vol, freqEnd){
+  try {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.connect(g); g.connect(AC.destination);
+    o.type = type;
+    o.frequency.setValueAtTime(freq, AC.currentTime);
+    if(freqEnd !== undefined)
+      o.frequency.exponentialRampToValueAtTime(freqEnd, AC.currentTime + duration);
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + duration);
+    o.start(AC.currentTime);
+    o.stop(AC.currentTime + duration);
+  } catch(e){}
+}
+
+// Noise burst (for flapping / feathers)
+function playNoise(duration, vol, bandFreq){
+  try {
+    const buf = AC.createBuffer(1, AC.sampleRate * duration, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+    const src = AC.createBufferSource();
+    src.buffer = buf;
+    const filt = AC.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = bandFreq || 800;
+    filt.Q.value = 1.5;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + duration);
+    src.connect(filt); filt.connect(g); g.connect(AC.destination);
+    src.start(); src.stop(AC.currentTime + duration);
+  } catch(e){}
+}
+
+// 🦅 Hawk screech dive sound
+function sndHawkDive(){
+  resumeAC();
+  // Descending screech
+  playTone(1800, 'sawtooth', 0.25, 0.18, 600);
+  setTimeout(()=> playTone(900, 'sawtooth', 0.2, 0.12, 300), 100);
+  // Wing rush noise
+  playNoise(0.35, 0.08, 1200);
+}
+
+// 🐔 Chicken panicked cluck (mwewe anaposhuka)
+function sndChickenPanic(){
+  resumeAC();
+  // Rapid clucks
+  [0, 80, 160, 240].forEach((ms, i) => {
+    setTimeout(()=>{
+      playTone(600 - i*40, 'square', 0.08, 0.15, 400 - i*30);
+      playNoise(0.06, 0.06, 600);
+    }, ms);
+  });
+}
+
+// 🪶 Chicken hit / paruliwa sound
+function sndChickenHit(){
+  resumeAC();
+  // Pained squawk
+  playTone(500, 'sawtooth', 0.12, 0.2, 200);
+  setTimeout(()=> playTone(350, 'square', 0.15, 0.15, 150), 80);
+  setTimeout(()=> playTone(250, 'sawtooth', 0.18, 0.12, 100), 180);
+  // Feather scatter noise
+  playNoise(0.3, 0.1, 900);
+}
+
+// 💀 Chicken captured / game over sound
+function sndChickenCaptured(){
+  resumeAC();
+  // Desperate long squawk descending
+  playTone(700, 'sawtooth', 0.5, 0.25, 100);
+  setTimeout(()=>{
+    playTone(400, 'sawtooth', 0.4, 0.2, 80);
+    playNoise(0.4, 0.15, 700);
+  }, 200);
+  setTimeout(()=>{
+    playTone(200, 'sawtooth', 0.5, 0.15, 50);
+    playNoise(0.5, 0.1, 400);
+  }, 450);
+  // Final silence drop
+  setTimeout(()=> playTone(150, 'sine', 0.6, 0.08, 80), 750);
+}
+
+// 🎉 Applause + celebration (level complete)
+function sndApplause(){
+  resumeAC();
+  // Crowd noise bursts (simulated clapping)
+  for(let i=0;i<12;i++){
+    setTimeout(()=>{
+      playNoise(0.06+Math.random()*0.04, 0.06+Math.random()*0.05, 400+Math.random()*600);
+    }, i*120 + Math.random()*60);
+  }
+  // Fanfare melody
+  const notes=[523,659,784,1047];
+  notes.forEach((f,i)=>{
+    setTimeout(()=>{
+      playTone(f,'sine',0.18,0.18);
+      playTone(f*1.26,'sine',0.12,0.08);
+    }, 200+i*160);
+  });
+  // Final triumphant chord
+  setTimeout(()=>{
+    [523,659,784,1047].forEach(f=> playTone(f,'sine',0.5,0.1));
+  }, 900);
+}
+
+// 🎆 Fireworks visual
+let fireworks=[];
+function startFireworks(){
+  fireworks=[];
+  const W=cv.width, H=cv.height;
+  for(let i=0;i<6;i++){
+    setTimeout(()=>{
+      const x=W*0.15+Math.random()*W*0.7;
+      const y=H*0.1+Math.random()*H*0.45;
+      const hue=Math.floor(Math.random()*360);
+      for(let j=0;j<18;j++){
+        const ang=j/18*Math.PI*2;
+        const spd=2+Math.random()*3;
+        fireworks.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life:80,hue});
+      }
+      // pop sound
+      playNoise(0.07, 0.12, 800+Math.random()*800);
+      setTimeout(()=> playTone(800+Math.random()*400,'sine',0.08,0.1), 30);
+    }, i*350);
+  }
+}
+
+// 😤 Grunt / groan (game over)
+function sndGrunt(){
+  resumeAC();
+  // Low descending groan
+  playTone(220,'sawtooth',0.4,0.2,80);
+  setTimeout(()=> playTone(150,'sawtooth',0.5,0.15,60), 200);
+  setTimeout(()=> playTone(100,'sine',0.6,0.1,50), 450);
+  // Sad trombone-ish
+  const sad=[330,311,293,220];
+  sad.forEach((f,i)=> setTimeout(()=> playTone(f,'sawtooth',0.25,0.12,f*0.85), 150+i*200));
+}
+
+// ── MUSIC SOUNDTRACK (Web Audio procedural) ───────────────
+const MUSIC = {
+  on: true,
+  nodes: [],  // active oscillators/nodes
+  gainNode: null,
+  masterGain: null,
+  bpm: 128,
+  beat: 0,
+  interval: null,
+  arpIdx: 0,
+  bassIdx: 0,
+};
+
+// Musical scales & progressions
+const SCALE_MAJOR = [0,2,4,5,7,9,11];
+const CHORD_PROG  = [0,5,3,4]; // I V vi IV (C G Am F)
+const BASE_FREQ   = 130.81;    // C3
+
+function midiToFreq(note){ return BASE_FREQ * Math.pow(2, note/12); }
+function scaleNote(degree, octave=0){ return SCALE_MAJOR[degree % SCALE_MAJOR.length] + Math.floor(degree/SCALE_MAJOR.length)*12 + octave*12; }
+
+function createMusicGain(vol){
+  const g = AC.createGain();
+  g.gain.value = vol;
+  g.connect(MUSIC.masterGain);
+  return g;
+}
+
+function startMusic(){
+  if(!MUSIC.on) return;
+  try {
+    resumeAC();
+    stopMusic();
+
+    // Master gain with soft limiter
+    MUSIC.masterGain = AC.createGain();
+    MUSIC.masterGain.gain.value = 0.28;
+
+    // Reverb-like convolver (simple delay network)
+    const delay = AC.createDelay(0.5);
+    delay.delayTime.value = 0.22;
+    const delayGain = AC.createGain();
+    delayGain.gain.value = 0.18;
+    MUSIC.masterGain.connect(delay);
+    delay.connect(delayGain);
+    delayGain.connect(AC.destination);
+    MUSIC.masterGain.connect(AC.destination);
+
+    const beatLen = 60 / MUSIC.bpm;
+    let tick = 0;
+
+    function scheduleBeat(){
+      if(!MUSIC.on) return;
+      const t = AC.currentTime + 0.02;
+      const chord = CHORD_PROG[tick % CHORD_PROG.length];
+
+      // ── Bass (every beat) ─────────────────
+      const bassNote = chord + 0;
+      const bassFreq = midiToFreq(bassNote);
+      const bassOsc = AC.createOscillator();
+      const bassG   = AC.createGain();
+      bassOsc.type = 'triangle';
+      bassOsc.frequency.value = bassFreq;
+      bassG.gain.setValueAtTime(0.001, t);
+      bassG.gain.linearRampToValueAtTime(0.55, t+0.02);
+      bassG.gain.exponentialRampToValueAtTime(0.001, t+beatLen*0.9);
+      bassOsc.connect(bassG); bassG.connect(MUSIC.masterGain);
+      bassOsc.start(t); bassOsc.stop(t+beatLen);
+      MUSIC.nodes.push(bassOsc);
+
+      // ── Arp melody (16th notes subdivided) ─
+      const arpNotes = [chord, chord+4, chord+7, chord+12, chord+7, chord+4];
+      for(let s=0;s<4;s++){
+        const at = t + s*(beatLen/4);
+        const noteIdx = (tick*4+s) % arpNotes.length;
+        const freq = midiToFreq(arpNotes[noteIdx] + 12);
+        const o = AC.createOscillator();
+        const g = AC.createGain();
+        o.type = tick%8<4 ? 'sine' : 'triangle';
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.001, at);
+        g.gain.linearRampToValueAtTime(0.22, at+0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, at+beatLen*0.28);
+        o.connect(g); g.connect(MUSIC.masterGain);
+        o.start(at); o.stop(at+beatLen*0.3);
+        MUSIC.nodes.push(o);
+      }
+
+      // ── Pad chord (every 2 beats) ──────────
+      if(tick%2===0){
+        [0,4,7,11].forEach((interval,i)=>{
+          const pFreq = midiToFreq(chord+interval+12);
+          const po = AC.createOscillator();
+          const pg = AC.createGain();
+          po.type = 'sine';
+          po.frequency.value = pFreq;
+          pg.gain.setValueAtTime(0.001, t);
+          pg.gain.linearRampToValueAtTime(0.06, t+0.15);
+          pg.gain.setValueAtTime(0.06, t+beatLen*2-0.1);
+          pg.gain.linearRampToValueAtTime(0.001, t+beatLen*2);
+          po.connect(pg); pg.connect(MUSIC.masterGain);
+          po.start(t); po.stop(t+beatLen*2);
+          MUSIC.nodes.push(po);
+        });
+      }
+
+      // ── Hi-hat (every 8th note) ────────────
+      if(tick%2===0 || tick%2===1){
+        for(let h=0;h<2;h++){
+          const ht = t + h*(beatLen/2);
+          try{
+            const buf = AC.createBuffer(1, Math.floor(AC.sampleRate*0.04), AC.sampleRate);
+            const d = buf.getChannelData(0);
+            for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+            const src = AC.createBufferSource(); src.buffer=buf;
+            const hg = AC.createGain();
+            hg.gain.value = tick%4===0 ? 0.06 : 0.03; // accent on downbeat
+            const hf = AC.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=6000;
+            src.connect(hf); hf.connect(hg); hg.connect(MUSIC.masterGain);
+            src.start(ht); MUSIC.nodes.push(src);
+          }catch(e){}
+        }
+      }
+
+      // ── Kick (beats 1 & 3) ────────────────
+      if(tick%4===0 || tick%4===2){
+        const ko = AC.createOscillator();
+        const kg = AC.createGain();
+        ko.type='sine';
+        ko.frequency.setValueAtTime(180, t);
+        ko.frequency.exponentialRampToValueAtTime(40, t+0.12);
+        kg.gain.setValueAtTime(0.001, t);
+        kg.gain.linearRampToValueAtTime(0.7, t+0.005);
+        kg.gain.exponentialRampToValueAtTime(0.001, t+0.18);
+        ko.connect(kg); kg.connect(MUSIC.masterGain);
+        ko.start(t); ko.stop(t+0.2); MUSIC.nodes.push(ko);
+      }
+
+      // ── Snare (beats 2 & 4) ───────────────
+      if(tick%4===1 || tick%4===3){
+        try{
+          const buf=AC.createBuffer(1,Math.floor(AC.sampleRate*0.12),AC.sampleRate);
+          const d=buf.getChannelData(0);
+          for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.5);
+          const src=AC.createBufferSource(); src.buffer=buf;
+          const sg=AC.createGain(); sg.gain.value=0.18;
+          const sf=AC.createBiquadFilter(); sf.type='bandpass'; sf.frequency.value=800; sf.Q.value=0.8;
+          const so=AC.createOscillator(); so.type='triangle'; so.frequency.value=200;
+          const sog=AC.createGain();
+          sog.gain.setValueAtTime(0.001,t); sog.gain.linearRampToValueAtTime(0.12,t+0.005);
+          sog.gain.exponentialRampToValueAtTime(0.001,t+0.1);
+          src.connect(sf); sf.connect(sg); sg.connect(MUSIC.masterGain);
+          so.connect(sog); sog.connect(MUSIC.masterGain);
+          src.start(t); so.start(t); so.stop(t+0.12); MUSIC.nodes.push(src,so);
+        }catch(e){}
+      }
+
+      tick++;
+      // speed up slightly each 16 beats (excitement)
+      if(tick%16===0) MUSIC.bpm = Math.min(160, MUSIC.bpm + 1);
+
+      // Clean up old nodes
+      if(MUSIC.nodes.length > 200) MUSIC.nodes.splice(0, 100);
+    }
+
+    // Schedule first beat immediately, then keep looping
+    scheduleBeat();
+    MUSIC.interval = setInterval(scheduleBeat, (60/MUSIC.bpm)*1000);
+  } catch(e){ console.warn('Music error',e); }
+}
+
+function stopMusic(){
+  if(MUSIC.interval){ clearInterval(MUSIC.interval); MUSIC.interval=null; }
+  MUSIC.nodes.forEach(n=>{ try{n.stop();}catch(e){} });
+  MUSIC.nodes=[];
+  MUSIC.bpm=128;
+  if(MUSIC.masterGain){ try{MUSIC.masterGain.disconnect();}catch(e){} MUSIC.masterGain=null; }
+}
+
+function toggleMusic(){
+  MUSIC.on = !MUSIC.on;
+  const btn = document.getElementById('music-btn');
+  if(MUSIC.on){
+    btn.textContent='🎵';
+    btn.classList.remove('muted');
+    startMusic();
+  } else {
+    btn.textContent='🔇';
+    btn.classList.add('muted');
+    stopMusic();
+  }
+}
+
+// ── INTERCEPT DEVICE BACK BUTTON ─────────────────────────
+// Push a dummy state so back button triggers popstate instead of leaving
+function pushGameState(){
+  history.pushState({game:true}, '');
+}
+window.addEventListener('popstate', e=>{
+  // Device back pressed — stop music and go home if playing
+  stopMusic();
+  if(G.running){
+    G.running=false; G.paused=false; fireworks=[];
+    showGameUI(false); hideAll();
+    document.getElementById('start-scr').classList.remove('hidden');
+  }
+  // Re-push so next back press is also caught
+  if(document.getElementById('start-scr').classList.contains('hidden')){
+    pushGameState();
+  }
+});
+
+function spawnHawks(){
+  hawks = [];
+  const lv = LEVELS[G.level-1];
+  const atkFreq  = lv.atkFreq||1;
+  const atkRange = lv.atkRange||1;
+  const waitMult = lv.waitMult||1;
+  for(let i=0; i<lv.hawks; i++){
+    const ang = (i/lv.hawks)*Math.PI*2;
+    hawks.push({
+      x: cv.width/2 + Math.cos(ang)*200,
+      y: cv.height*0.18 + Math.sin(ang)*60,
+      phase: ang,
+      state: 'patrol',
+      waitT: (80 + i*60) * waitMult / atkFreq,
+      diveX:0, diveY:0,
+      sz: 40, frameT:0,
+      pat: lv.pat, spd: lv.spd,
+      atkRange, atkFreq,
+      dodged: false,
+    });
+  }
+}
+
+function updateHawk(h, dt){
+  const W=cv.width, H=cv.height;
+  const spd = h.spd * dt;
+
+  if(h.state === 'patrol'){
+    h.waitT -= dt;
+    h.phase += dt * 0.013;
+    // patrol movement
+    let tx, ty;
+    if(h.pat==='circle'||h.pat==='mixed'){
+      const r = 160 + Math.sin(h.phase*.4)*40;
+      tx = W/2 + Math.cos(h.phase)*r;
+      ty = H*.16 + Math.sin(h.phase*.7)*45;
+    } else if(h.pat==='dive'){
+      tx = K.x + Math.cos(h.phase*1.4)*160;
+      ty = H*.12 + Math.sin(h.phase)*.5*H*.1;
+    } else if(h.pat==='zigzag'){
+      tx = W*.1 + (Math.sin(h.phase*1.3)*.5+.5)*W*.8;
+      ty = H*.1 + (Math.cos(h.phase)*.5+.5)*H*.15;
+    } else { // swarm
+      tx = K.x + Math.cos(h.phase + h.phase*.3)*170;
+      ty = K.y - 130 + Math.sin(h.phase*1.5)*35;
+    }
+    h.x += (tx-h.x)*.045; h.y += (ty-h.y)*.045;
+    h.x = Math.max(30,Math.min(W-30,h.x));
+    h.y = Math.max(25,Math.min(H*.5,h.y));
+
+    if(h.waitT <= 0){
+      // lock target and dive
+      h.diveX = K.x; h.diveY = K.y;
+      h.state = 'diving';
+      h.dodged = false;
+      sndHawkDive();        // 🦅 screech as hawk dives
+      sndChickenPanic();    // 🐔 kuku anajua hatari
+    }
+
+  } else if(h.state === 'diving'){
+    const dx = h.diveX - h.x, dy = h.diveY - h.y;
+    const dist = Math.hypot(dx, dy);
+    const mv = spd * 3.6;
+    h.x += (dx/(dist||1))*mv;
+    h.y += (dy/(dist||1))*mv;
+
+    if(dist < mv+8){
+      const hitRadius = 56 * (h.atkRange||1);
+      const kDist = Math.hypot(h.x - K.x, h.y - K.y);
+      if(kDist < hitRadius && K.invT <= 0){
+        hitK(h);
+      } else {
+        h.dodged = true;
+        G.missedAttacks++;
+        updateAtkBadge();
+        part(h.x, h.y-20, '💨 Amekosa!', 0, -2);
+      }
+      h.state = 'retreating';
+      h.waitT = (70 + Math.random()*50) / (h.atkFreq||1);
+    }
+
+  } else { // retreating
+    const tx = W/2 + Math.cos(h.phase)*170;
+    const ty = H*.16;
+    h.x += (tx-h.x)*.07; h.y += (ty-h.y)*.07;
+    h.waitT -= dt;
+    if(h.waitT <= 0){
+      h.state = 'patrol';
+      h.waitT = 60 + Math.random()*60;
+    }
+  }
+
+  h.frameT += dt;
+}
+
+// ── HIT / DAMAGE ─────────────────────────────────────────
+let shakeT=0;
+function hitK(h){
+  const invMult = K.invTMult||1;
+  const dmg = Math.max(5, Math.round((22-(K.powerLv-1)*2) / invMult));
+  G.hp = Math.max(0, G.hp-dmg);
+  G.feathers++;
+  K.invT = 90 * invMult;  // longer invincibility for tanky chickens
+  shakeT = 14;
+  for(let i=0;i<7;i++) part(K.x+(Math.random()-.5)*30, K.y+(Math.random()-.5)*20, '🪶');
+  part(K.x, K.y-36, `-${dmg}❤️`, 0, -2.5);
+  if(G.hp <= 0){
+    sndChickenCaptured();
+  } else {
+    sndChickenHit();
+  }
+  updateHUD();
+  if(G.hp <= 0) doGameOver();
+}
+
+// ── PARTICLES ────────────────────────────────────────────
+let parts=[];
+function part(x,y,txt,vx,vy){
+  parts.push({x,y,vx:vx!==undefined?vx:(Math.random()-.5)*5,
+              vy:vy!==undefined?vy:(-2-Math.random()*3), life:90, txt});
+}
+
+// ── INPUT — touch drag to move + joystick pad ─────────────
+// Joystick state
+const JOY = { active:false, id:null, cx:0, cy:0, dx:0, dy:0, r:50 };
+// Direct canvas drag state (drag anywhere on canvas to move kuku)
+const DRAG = { active:false, id:null, ox:0, oy:0 }; // ox/oy = offset from kuku center
+// Jump/dash keys (still usable from keyboard)
+const keys = {jump:false, dash:false};
+
+function setupInput(){
+  const pad = document.getElementById('drag-pad');
+  const inner = document.getElementById('drag-pad-inner');
+  const W = ()=>cv.width, H = ()=>cv.height;
+
+  // ── Joystick pad touch ──────────────────────────────────
+  pad.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    if(JOY.active) return;
+    const t = e.changedTouches[0];
+    const r = pad.getBoundingClientRect();
+    JOY.active=true; JOY.id=t.identifier;
+    JOY.cx=r.left+r.width/2; JOY.cy=r.top+r.height/2;
+    JOY.dx=0; JOY.dy=0;
+  },{passive:false});
+
+  document.addEventListener('touchmove', e=>{
+    e.preventDefault();
+    // joystick
+    for(const t of e.changedTouches){
+      if(JOY.active && t.identifier===JOY.id){
+        const dx=t.clientX-JOY.cx, dy=t.clientY-JOY.cy;
+        const dist=Math.hypot(dx,dy);
+        const clamped=Math.min(dist,JOY.r);
+        const angle=Math.atan2(dy,dx);
+        JOY.dx=Math.cos(angle)*clamped/JOY.r;
+        JOY.dy=Math.sin(angle)*clamped/JOY.r;
+        // move inner knob
+        const kx=Math.cos(angle)*clamped, ky=Math.sin(angle)*clamped;
+        inner.style.left=(50+(kx/JOY.r)*44)+'%';
+        inner.style.top=(50+(ky/JOY.r)*44)+'%';
+      }
+      // canvas drag — follow finger
+      if(DRAG.active && t.identifier===DRAG.id && G.running && !G.paused){
+        K.x = Math.max(K.sz, Math.min(W()-K.sz, t.clientX + DRAG.ox));
+        K.y = Math.max(H()*.1, Math.min(H()*.88, t.clientY + DRAG.oy));
+      }
+    }
+  },{passive:false});
+
+  document.addEventListener('touchend', e=>{
+    for(const t of e.changedTouches){
+      if(JOY.active && t.identifier===JOY.id){
+        JOY.active=false; JOY.dx=0; JOY.dy=0;
+        inner.style.left='50%'; inner.style.top='50%';
+      }
+      if(DRAG.active && t.identifier===DRAG.id) DRAG.active=false;
+    }
+  },{passive:false});
+
+  // ── Canvas touch — drag kuku directly ──────────────────
+  cv.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    if(!G.running || G.paused) return;
+    for(const t of e.changedTouches){
+      // Skip if touch started on a UI element
+      if(DRAG.active || JOY.active) continue;
+      DRAG.active=true; DRAG.id=t.identifier;
+      // Store offset so kuku doesn't jump to finger
+      DRAG.ox = K.x - t.clientX;
+      DRAG.oy = K.y - t.clientY;
+    }
+  },{passive:false});
+
+  // ── Action buttons ──────────────────────────────────────
+  const bjump = document.getElementById('bjump');
+  const bdash = document.getElementById('bdash');
+  bjump.addEventListener('touchstart',e=>{e.preventDefault();keys.jump=true;},{passive:false});
+  bjump.addEventListener('touchend',e=>{e.preventDefault();keys.jump=false;},{passive:false});
+  bdash.addEventListener('touchstart',e=>{e.preventDefault();keys.dash=true;},{passive:false});
+  bdash.addEventListener('touchend',e=>{e.preventDefault();keys.dash=false;},{passive:false});
+  bjump.addEventListener('mousedown',()=>keys.jump=true);
+  bjump.addEventListener('mouseup',()=>keys.jump=false);
+  bdash.addEventListener('mousedown',()=>keys.dash=true);
+  bdash.addEventListener('mouseup',()=>keys.dash=false);
+
+  // ── Keyboard fallback ───────────────────────────────────
+  document.addEventListener('keydown',e=>{
+    if(e.key===' ')      keys.jump=true;
+    if(e.key==='Shift')  keys.dash=true;
+    if(e.key==='Escape'||e.key==='p') togglePause();
+    const s=4;
+    if(e.key==='ArrowUp')    {K.y-=s;}
+    if(e.key==='ArrowDown')  {K.y+=s;}
+    if(e.key==='ArrowLeft')  {K.x-=s;}
+    if(e.key==='ArrowRight') {K.x+=s;}
+  });
+  document.addEventListener('keyup',e=>{
+    if(e.key===' ')     keys.jump=false;
+    if(e.key==='Shift') keys.dash=false;
+  });
+}
+
+// ── UPDATE CHICKEN ────────────────────────────────────────
+function updateK(dt){
+  const spdMult = K.spdMult||1;
+
+  // Joystick movement
+  if(JOY.active && (Math.abs(JOY.dx)>0.05 || Math.abs(JOY.dy)>0.05)){
+    const spd=(K.dashing?3.8:2.5)*spdMult*(1+(K.powerLv-1)*.1)*dt;
+    K.x += JOY.dx * spd;
+    K.y += JOY.dy * spd;
+  }
+  // Canvas drag follows touch directly — no extra movement needed (handled in touchmove)
+
+  const jumpH = K.jumpHMult||1;
+  if(keys.jump&&!K.jumping&&K.jumpV<=0){K.jumping=true; K.jumpV=.65*jumpH;}
+  if(K.jumping){K.jumpV-=.022*dt; if(K.jumpV<=0){K.jumping=false;K.jumpV=0;}}
+
+  const dashCDBase = 65*(K.dashCDMult||1);
+  if(keys.dash&&!K.dashing&&K.dashCD<=0){K.dashing=true;K.dashT=16;K.dashCD=dashCDBase;}
+  if(K.dashing){K.dashT-=dt; if(K.dashT<=0)K.dashing=false;}
+  K.dashCD=Math.max(0,K.dashCD-dt);
+  K.invT=Math.max(0,K.invT-dt);
+  K.x=Math.max(K.sz, Math.min(cv.width-K.sz, K.x));
+  K.y=Math.max(cv.height*.1, Math.min(cv.height*.88, K.y));
+  K.wobble+=dt*.35; K.frameT+=dt;
+}
+
+// ── HUD ──────────────────────────────────────────────────
+function updateHUD(){
+  document.getElementById('hlvl').textContent = G.level;
+  document.getElementById('hscore').textContent = G.score;
+  document.getElementById('hpnum').textContent = G.hp;
+  document.getElementById('hpbar').style.width = G.hp+'%';
+  document.getElementById('hpbar').style.background =
+    G.hp>60?'linear-gradient(90deg,#2ecc71,#27ae60)':
+    G.hp>30?'linear-gradient(90deg,#f39c12,#e67e22)':
+    'linear-gradient(90deg,#e74c3c,#c0392b)';
+  document.getElementById('hfeat').textContent = G.feathers;
+  document.getElementById('eggnum').textContent = G.eggs;
+  const eb=document.getElementById('egg-btn'), ei=document.getElementById('egg-info');
+  if(G.eggs>0&&G.running){eb.style.display='block';ei.style.display='block';}
+  else{eb.style.display='none';ei.style.display='none';}
+}
+
+function updateAtkBadge(){
+  const b=document.getElementById('atk-badge');
+  document.getElementById('atk-num').textContent = G.missedAttacks;
+  b.style.display='block';
+  if(G.missedAttacks>=G.
